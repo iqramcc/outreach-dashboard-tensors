@@ -49,6 +49,13 @@ export default function ColumnsManager({ columns }: { columns: Col[] }) {
   const [optionsDraft, setOptionsDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // Optionally fill the new column from the ones already there, rather than
+  // leaving it blank for every school.
+  const [fill, setFill] = useState<'blank' | 'copy' | 'merge'>('blank')
+  const [fillFrom, setFillFrom] = useState('')
+  const [fillFrom2, setFillFrom2] = useState('')
+  const [separator, setSeparator] = useState(' ')
+
   function parseOptions(text: string): string[] {
     return text
       .split(/[\n,]/)
@@ -153,9 +160,34 @@ export default function ColumnsManager({ columns }: { columns: Col[] }) {
       setError(data.error ?? 'Could not add the column')
       return
     }
+    // Populate it from existing columns if asked, now that it exists.
+    if (fill !== 'blank' && fillFrom) {
+      const created = await res.json().catch(() => null)
+      if (created?.column?.id) {
+        const derive = await fetch(`/api/columns/${created.column.id}/derive`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: fill,
+            from: fillFrom,
+            from2: fill === 'merge' ? fillFrom2 : undefined,
+            separator,
+          }),
+        })
+        if (!derive.ok) {
+          const d = await derive.json().catch(() => ({}))
+          setError(d.error ?? 'Column added, but could not fill it in')
+        }
+      }
+    }
+
     setLabel('')
     setOptionsText('')
     setType('TEXT')
+    setFill('blank')
+    setFillFrom('')
+    setFillFrom2('')
+    setSeparator(' ')
     setAdding(false)
     router.refresh()
   }
@@ -342,8 +374,76 @@ export default function ColumnsManager({ columns }: { columns: Col[] }) {
             </div>
           )}
 
+          {/* Item 6: start the new column from what is already there. */}
+          <div className="border-t pt-3">
+            <label className="label" htmlFor="nc-fill">Start it from</label>
+            <div className="flex flex-wrap items-end gap-2">
+              <select
+                id="nc-fill"
+                className="input w-56"
+                value={fill}
+                onChange={(e) => setFill(e.target.value as typeof fill)}
+              >
+                <option value="blank">Leave it blank</option>
+                <option value="copy">A copy of another column</option>
+                <option value="merge">Two columns merged together</option>
+              </select>
+
+              {fill !== 'blank' && (
+                <select
+                  className="input w-48"
+                  value={fillFrom}
+                  onChange={(e) => setFillFrom(e.target.value)}
+                  aria-label="Column to read from"
+                >
+                  <option value="">Choose a column...</option>
+                  {columns.map((c) => (
+                    <option key={c.id} value={c.key}>{c.label}</option>
+                  ))}
+                </select>
+              )}
+
+              {fill === 'merge' && (
+                <>
+                  <div>
+                    <label className="label" htmlFor="nc-sep">Separator</label>
+                    <input
+                      id="nc-sep"
+                      className="input w-24"
+                      value={separator}
+                      onChange={(e) => setSeparator(e.target.value)}
+                      placeholder="space"
+                    />
+                  </div>
+                  <select
+                    className="input w-48"
+                    value={fillFrom2}
+                    onChange={(e) => setFillFrom2(e.target.value)}
+                    aria-label="Second column to merge"
+                  >
+                    <option value="">and...</option>
+                    {columns.map((c) => (
+                      <option key={c.id} value={c.key}>{c.label}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
+            {fill === 'merge' && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+                A row with only one of the two values gets just that value, with no
+                separator left dangling.
+              </p>
+            )}
+          </div>
+
           <div className="flex gap-2">
-            <button className="btn btn-primary" onClick={create} disabled={busy} type="button">
+            <button
+              className="btn btn-primary"
+              onClick={create}
+              disabled={busy || (fill !== 'blank' && !fillFrom) || (fill === 'merge' && !fillFrom2)}
+              type="button"
+            >
               Add column
             </button>
             <button className="btn btn-ghost" onClick={() => setAdding(false)} type="button">

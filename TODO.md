@@ -153,9 +153,10 @@ the existing sheet where it can.
 ## 5. Import district picker offers only the 14 districts · ☑ done
 Add NA, and make free text obvious.
 
-## 6. Column add — copy or merge into the new column · ☐ NEEDS CLARIFYING
-"give option to copy or merge to existing row to the new" — ask what this means
-before building.
+## 6. Column add — copy or merge into the new column · ☑ done
+A new column can start as a copy of an existing one, or as two columns merged
+with a separator you choose. A row with only one of the two values gets just
+that value, with no separator left dangling.
 
 ## 7. Changing a sheet's type belongs to admin only · ☑ done
 Remove list-type editing from the member grid. In admin, offer either keeping
