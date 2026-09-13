@@ -112,3 +112,17 @@ district, and lets you add anyway). Choosing where the new row lands needs the
 - Rows currently have no explicit order column; the grid sorts by `createdAt`.
   Items 13 and 14 need a real `position` field — see the design note when that
   work starts.
+
+## 15. Personal colour schemes · ☑ done
+The shared key stays the team's agreed meaning, admin-owned. On top of it each
+person gets a private overlay, reached by "My colours" above any sheet:
+
+- **Recolour a status for yourself.** Give two statuses the same colour because
+  for your purposes they are the same thing. One click resets to the team's.
+- **Your own marks.** Invent a label the shared statuses don't cover ("call
+  after exams") in any colour, tick rows, and apply it from the selection bar.
+  It shows as a dot beside the row number.
+
+Nobody else sees any of it, and it never reaches the pipeline figures — the
+dashboard still counts the shared statuses. Verified: a member's colour leaves
+the team colour untouched, and an admin gets 404 on another person's mark.

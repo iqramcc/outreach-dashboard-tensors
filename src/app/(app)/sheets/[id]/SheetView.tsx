@@ -12,6 +12,7 @@ import EditableCell from '@/components/EditableCell'
 
 export type Status = { id: string; name: string; hex: string; order: number; isContacted: boolean; isPositive: boolean; isDefault: boolean }
 export type UserLite = { id: string; name: string }
+export type PersonalTag = { id: string; name: string; hex: string; schoolIds: string[] }
 
 export type Row = {
   id: string
@@ -78,6 +79,8 @@ export default function SheetView({
   statuses,
   users,
   districts,
+  myColours,
+  myTags,
   total,
   page,
   pageSize,
@@ -89,6 +92,9 @@ export default function SheetView({
   statuses: Status[]
   users: UserLite[]
   districts: string[]
+  /** This viewer's own colour for a status, overriding the shared one. */
+  myColours: Record<string, string>
+  myTags: PersonalTag[]
   total: number
   page: number
   pageSize: number
@@ -116,6 +122,19 @@ export default function SheetView({
   const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
 
   const visible = useMemo(() => columns.filter((c) => c.isVisible), [columns])
+
+  /** The shared colour unless this viewer has chosen their own. */
+  const colourOf = useCallback(
+    (statusId: string | undefined, shared: string | undefined) =>
+      (statusId ? myColours[statusId] : undefined) ?? shared,
+    [myColours]
+  )
+
+  /** Which of the viewer's private marks are on a given row. */
+  const tagsOf = useCallback(
+    (schoolId: string) => myTags.filter((t) => t.schoolIds.includes(schoolId)),
+    [myTags]
+  )
   const pages = Math.max(1, Math.ceil(total / pageSize))
 
   /** Push a filter into the URL so every view is shareable and bookmarkable. */
@@ -251,6 +270,21 @@ export default function SheetView({
     return selected.has(rowId) && selected.size > 1 ? [...selected] : [rowId]
   }
 
+  /** Put one of the viewer's own marks on, or take it off, the ticked rows. */
+  async function applyTag(tagId: string, on: boolean) {
+    const res = await fetch(`/api/personal/tags/${tagId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schoolIds: [...selected], on }),
+    })
+    if (!res.ok) {
+      setToast('Could not update your marks')
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
+    router.refresh()
+  }
+
   function toggleColumn(key: string) {
     setColumns((cs) => cs.map((c) => (c.key === key ? { ...c, isVisible: !c.isVisible } : c)))
   }
@@ -313,7 +347,14 @@ export default function SheetView({
   function optionsFor(col: ResolvedColumn) {
     switch (col.key) {
       case 'status':
-        return [{ value: '', label: '—' }, ...statuses.map((s) => ({ value: s.id, label: s.name, hex: s.hex }))]
+        return [
+          { value: '', label: '—' },
+          ...statuses.map((s) => ({
+            value: s.id,
+            label: s.name,
+            hex: colourOf(s.id, s.hex),
+          })),
+        ]
       case 'assignedTo':
         return [{ value: '', label: 'Unassigned' }, ...users.map((u) => ({ value: u.id, label: u.name }))]
       case 'entityType':
@@ -409,6 +450,30 @@ export default function SheetView({
             ))}
           </select>
 
+          {myTags.length > 0 && (
+            <select
+              className="input w-auto"
+              defaultValue=""
+              onChange={(e) => {
+                const [tagId, mode] = e.target.value.split(':')
+                if (!tagId) return
+                applyTag(tagId, mode === 'on')
+                e.target.value = ''
+              }}
+              aria-label="Mark selected rows"
+            >
+              <option value="">My marks...</option>
+              {myTags.map((t) => (
+                <option key={t.id} value={`${t.id}:on`}>Mark as {t.name}</option>
+              ))}
+              {myTags.map((t) => (
+                <option key={`off-${t.id}`} value={`${t.id}:off`}>
+                  Remove {t.name}
+                </option>
+              ))}
+            </select>
+          )}
+
           <button
             type="button"
             className="btn btn-ghost py-1 text-xs"
@@ -426,7 +491,14 @@ export default function SheetView({
         </p>
       )}
 
-      <Legend statuses={statuses} isAdmin={isAdmin} activeId={params.get('status')} onFilter={(id) => setParam('status', id)} />
+      <Legend
+        statuses={statuses}
+        isAdmin={isAdmin}
+        activeId={params.get('status')}
+        onFilter={(id) => setParam('status', id)}
+        myColours={myColours}
+        myTags={myTags}
+      />
 
       {/* Filters */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -615,7 +687,9 @@ export default function SheetView({
                     background: 'var(--surface)',
                     color: 'var(--muted)',
                     // The row's status colour reads as a spine down the left edge.
-                    boxShadow: row.status ? `inset 3px 0 0 ${row.status.hex}` : undefined,
+                    boxShadow: row.status
+                      ? `inset 3px 0 0 ${colourOf(row.status.id, row.status.hex)}`
+                      : undefined,
                   }}
                 >
                   <span className="flex items-center gap-1.5">
@@ -650,6 +724,15 @@ export default function SheetView({
                       }}
                       aria-label={`Position of ${row.name}`}
                     />
+                    {/* This viewer's private marks, invisible to everyone else. */}
+                    {tagsOf(row.id).map((t) => (
+                      <span
+                        key={t.id}
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ background: t.hex }}
+                        title={t.name}
+                      />
+                    ))}
                   </span>
                 </td>
                 {visible.map((c) => (
@@ -660,7 +743,11 @@ export default function SheetView({
                     display={cellValue(row, c)}
                     rawValue={rawCellValue(row, c)}
                     suggestions={SUGGESTIONS[c.key] ?? c.options ?? null}
-                    color={c.key === 'status' ? (row.status?.hex ?? null) : (row.cellColors?.[c.key] ?? null)}
+                    color={
+                      c.key === 'status'
+                        ? (colourOf(row.status?.id, row.status?.hex) ?? null)
+                        : (row.cellColors?.[c.key] ?? null)
+                    }
                     options={optionsFor(c)}
                     onSave={(v) => saveCell(row.id, c.key, v)}
                   />

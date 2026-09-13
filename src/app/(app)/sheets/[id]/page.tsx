@@ -41,7 +41,17 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
     due,
   })
 
-  const [total, schools, statuses, columnDefs, prefs, users, districts] = await Promise.all([
+  const [
+    total,
+    schools,
+    statuses,
+    columnDefs,
+    prefs,
+    users,
+    districts,
+    myColours,
+    myTags,
+  ] = await Promise.all([
     prisma.school.count({ where }),
     prisma.school.findMany({
       where,
@@ -74,6 +84,21 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
       select: { district: true },
       orderBy: { district: 'asc' },
     }),
+    // This viewer's own colours - nobody else's view is affected by them.
+    prisma.userStatusColor.findMany({
+      where: { userId: user.id },
+      select: { statusId: true, hex: true },
+    }),
+    prisma.personalTag.findMany({
+      where: { userId: user.id },
+      orderBy: { order: 'asc' },
+      include: {
+        schools: {
+          where: { school: { sheetId: id } },
+          select: { schoolId: true },
+        },
+      },
+    }),
   ])
 
   let columns = resolveColumns(columnDefs, prefs)
@@ -101,6 +126,13 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
       statuses={statuses}
       users={users}
       districts={districts.map((d) => d.district).filter(Boolean) as string[]}
+      myColours={Object.fromEntries(myColours.map((c) => [c.statusId, c.hex]))}
+      myTags={myTags.map((t) => ({
+        id: t.id,
+        name: t.name,
+        hex: t.hex,
+        schoolIds: t.schools.map((s) => s.schoolId),
+      }))}
       total={total}
       page={page}
       pageSize={PAGE_SIZE}

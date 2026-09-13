@@ -73,12 +73,14 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  createdSheets   Sheet[]       @relation("SheetCreatedBy")
-  createdSchools  School[]      @relation("SchoolCreatedBy")
-  assignedSchools School[]      @relation("SchoolAssignedTo")
-  outreachLogs    OutreachLog[]
-  importBatches   ImportBatch[]
-  columnPrefs     ColumnPref[]
+  createdSheets    Sheet[]           @relation("SheetCreatedBy")
+  createdSchools   School[]          @relation("SchoolCreatedBy")
+  assignedSchools  School[]          @relation("SchoolAssignedTo")
+  outreachLogs     OutreachLog[]
+  importBatches    ImportBatch[]
+  columnPrefs      ColumnPref[]
+  userStatusColors UserStatusColor[]
+  personalTags     PersonalTag[]
 }
 
 model Sheet {
@@ -164,12 +166,13 @@ model School {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  sheet       Sheet           @relation(fields: [sheetId], references: [id], onDelete: Cascade)
-  status      OutreachStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
-  assignedTo  User?           @relation("SchoolAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy   User?           @relation("SchoolCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  importBatch ImportBatch?    @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  logs        OutreachLog[]
+  sheet        Sheet               @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  status       OutreachStatus?     @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  assignedTo   User?               @relation("SchoolAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy    User?               @relation("SchoolCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  importBatch  ImportBatch?        @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  logs         OutreachLog[]
+  personalTags SchoolPersonalTag[]
 
   @@index([nameKey])
   @@index([contactKey])
@@ -200,7 +203,8 @@ model OutreachStatus {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  schools School[]
+  schools     School[]
+  userColours UserStatusColor[]
 
   @@index([order])
 }
@@ -282,4 +286,54 @@ model ImportBatch {
   schools   School[]
 
   @@index([createdAt])
+}
+
+/**
+ * A volunteer's own colour for a shared status, applied only in their view.
+ * The colour key itself stays the team's agreed meaning and only an admin can
+ * change it. This lets one person recolour it for their own scanning - giving
+ * two statuses the same colour, say, because for their purposes they are the
+ * same thing - without touching what anyone else sees.
+ */
+model UserStatusColor {
+  id       String @id @default(uuid())
+  userId   String
+  statusId String
+  hex      String
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status OutreachStatus @relation(fields: [statusId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, statusId])
+}
+
+/**
+ * A private label someone invents for a case the shared statuses do not cover
+ * - "ask again after exams", "principal knows my uncle". Visible only to them,
+ * so it never muddles the team's pipeline figures.
+ */
+model PersonalTag {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  hex       String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schools SchoolPersonalTag[]
+
+  @@unique([userId, name])
+  @@index([userId, order])
+}
+
+model SchoolPersonalTag {
+  schoolId String
+  tagId    String
+
+  school School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  tag    PersonalTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([schoolId, tagId])
+  @@index([tagId])
 }

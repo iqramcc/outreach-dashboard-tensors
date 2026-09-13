@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Pencil, Plus, Trash2, X } from 'lucide-react'
-import type { Status } from '@/app/(app)/sheets/[id]/SheetView'
+import { Check, Palette, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react'
+import type { PersonalTag, Status } from '@/app/(app)/sheets/[id]/SheetView'
 
 /**
  * The colour legend, pinned above every sheet.
@@ -20,11 +20,16 @@ export default function Legend({
   isAdmin,
   activeId,
   onFilter,
+  myColours,
+  myTags,
 }: {
   statuses: Status[]
   isAdmin: boolean
   activeId: string | null
   onFilter: (id: string) => void
+  /** This viewer's own colour per status, overriding the shared one. */
+  myColours: Record<string, string>
+  myTags: PersonalTag[]
 }) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
@@ -33,6 +38,62 @@ export default function Legend({
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newHex, setNewHex] = useState('#10803f')
+
+  // The personal overlay. The shared key above is the team's agreed meaning
+  // and only an admin changes it; everything here is this viewer's alone.
+  const [mine, setMine] = useState(false)
+  const [tagName, setTagName] = useState('')
+  const [tagHex, setTagHex] = useState('#8b5cf6')
+
+  const colourOf = (s: Status) => myColours[s.id] ?? s.hex
+
+  async function setMyColour(statusId: string, hex: string | null) {
+    setBusy(true)
+    await fetch('/api/personal/colours', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statusId, hex }),
+    })
+    setBusy(false)
+    router.refresh()
+  }
+
+  async function addTag() {
+    if (!tagName.trim()) return
+    setBusy(true)
+    const res = await fetch('/api/personal/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: tagName.trim(), hex: tagHex }),
+    })
+    setBusy(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error ?? 'Could not add that mark')
+      return
+    }
+    setTagName('')
+    router.refresh()
+  }
+
+  async function updateTag(id: string, body: Record<string, unknown>) {
+    setBusy(true)
+    await fetch(`/api/personal/tags/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    setBusy(false)
+    router.refresh()
+  }
+
+  async function removeTag(id: string, name: string) {
+    if (!confirm(`Remove your "${name}" mark? The schools themselves are untouched.`)) return
+    setBusy(true)
+    await fetch(`/api/personal/tags/${id}`, { method: 'DELETE' })
+    setBusy(false)
+    router.refresh()
+  }
 
   function startEdit() {
     const d: Record<string, { name: string; hex: string }> = {}
@@ -127,11 +188,23 @@ export default function Legend({
               }
               title={`Show only "${s.name}"`}
             >
-              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.hex }} />
+              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: colourOf(s) }} />
               {s.name}
             </button>
           )
         )}
+
+        <div className={isAdmin ? 'flex items-center gap-1.5' : 'ml-auto flex items-center gap-1.5'}>
+          <button
+            type="button"
+            className="btn btn-ghost px-2 py-1 text-xs"
+            style={mine ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : {}}
+            onClick={() => setMine((v) => !v)}
+            title="Colours and marks only you can see"
+          >
+            <Palette size={13} /> My colours
+          </button>
+        </div>
 
         {isAdmin && (
           <div className="ml-auto flex items-center gap-1.5">
@@ -150,6 +223,99 @@ export default function Legend({
           </div>
         )}
       </div>
+
+      {mine && (
+        <div className="mt-2 border-t pt-2">
+          <p className="mb-1.5 text-xs" style={{ color: 'var(--muted)' }}>
+            Only you see these. The key above stays as the team agreed it.
+          </p>
+
+          <p className="label">Recolour a status for yourself</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+            {statuses.map((s) => {
+              const overridden = myColours[s.id] !== undefined
+              return (
+                <span key={s.id} className="flex items-center gap-1 text-xs">
+                  <input
+                    type="color"
+                    value={colourOf(s)}
+                    onChange={(e) => setMyColour(s.id, e.target.value)}
+                    disabled={busy}
+                    className="h-5 w-5 cursor-pointer rounded border-0 bg-transparent p-0"
+                    aria-label={`My colour for ${s.name}`}
+                  />
+                  {s.name}
+                  {overridden && (
+                    <button
+                      type="button"
+                      onClick={() => setMyColour(s.id, null)}
+                      title="Back to the team's colour"
+                      className="p-0.5"
+                    >
+                      <RotateCcw size={11} style={{ color: 'var(--muted)' }} />
+                    </button>
+                  )}
+                </span>
+              )
+            })}
+          </div>
+
+          <p className="label mt-3">Your own marks</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            {myTags.map((t) => (
+              <span key={t.id} className="flex items-center gap-1 text-xs">
+                <input
+                  type="color"
+                  value={t.hex}
+                  onChange={(e) => updateTag(t.id, { hex: e.target.value })}
+                  disabled={busy}
+                  className="h-5 w-5 cursor-pointer rounded border-0 bg-transparent p-0"
+                  aria-label={`Colour for ${t.name}`}
+                />
+                {t.name}
+                <span style={{ color: 'var(--muted)' }}>({t.schoolIds.length})</span>
+                <button
+                  type="button"
+                  onClick={() => removeTag(t.id, t.name)}
+                  className="p-0.5"
+                  aria-label={`Remove ${t.name}`}
+                >
+                  <Trash2 size={11} style={{ color: 'var(--danger)' }} />
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input
+              type="color"
+              value={tagHex}
+              onChange={(e) => setTagHex(e.target.value)}
+              className="h-7 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
+              aria-label="Colour for the new mark"
+            />
+            <input
+              className="input w-56"
+              value={tagName}
+              onChange={(e) => setTagName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addTag()}
+              placeholder="e.g. call after exams"
+              aria-label="Name of the new mark"
+            />
+            <button
+              type="button"
+              className="btn btn-ghost py-1 text-xs"
+              onClick={addTag}
+              disabled={busy}
+            >
+              <Plus size={13} /> Add mark
+            </button>
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>
+              Then tick rows and use &ldquo;My marks&rdquo; to apply it.
+            </span>
+          </div>
+        </div>
+      )}
 
       {adding && (
         <div className="mt-2 flex flex-wrap items-center gap-2 border-t pt-2">
