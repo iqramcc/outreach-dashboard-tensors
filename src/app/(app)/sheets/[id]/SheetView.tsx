@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Columns3, Download, Plus, Search, UserPlus, X } from 'lucide-react'
+import { Columns3, Download, Plus, Search, SlidersHorizontal, UserPlus, X } from 'lucide-react'
 import type { ResolvedColumn } from '@/lib/columns'
 import { REGION_LABELS } from '@/lib/regions'
 import Legend from '@/components/Legend'
@@ -83,6 +83,7 @@ export default function SheetView({
   statuses,
   users,
   districts,
+  allSheets,
   myColours,
   myTags,
   total,
@@ -96,6 +97,8 @@ export default function SheetView({
   statuses: Status[]
   users: UserLite[]
   districts: string[]
+  /** Every sheet, so an admin can copy rows into one of them. */
+  allSheets: { id: string; name: string }[]
   /** This viewer's own colour for a status, overriding the shared one. */
   myColours: Record<string, string>
   myTags: PersonalTag[]
@@ -131,6 +134,17 @@ export default function SheetView({
   const [showCols, setShowCols] = useState(false)
   const [adding, setAdding] = useState(false)
   const [search, setSearch] = useState(params.get('q') ?? '')
+  const [showFilters, setShowFilters] = useState(false)
+
+  /** Filters being edited, applied only when "Filter" is pressed. */
+  const emptyDraft = {
+    district: params.get('district') ?? '',
+    list: params.get('list') ?? '',
+    assigned: params.get('assigned') ?? '',
+    region: params.get('region') ?? '',
+    due: params.get('due') ?? '',
+  }
+  const [filterDraft, setFilterDraft] = useState(emptyDraft)
   const [toast, setToast] = useState<string | null>(null)
 
   // Row selection, for handing a stretch of the call list to one volunteer.
@@ -175,6 +189,25 @@ export default function SheetView({
   const activeFilters = ['q', 'district', 'region', 'list', 'status', 'assigned', 'due'].filter(
     (k) => params.get(k)
   )
+
+  /** Commit every staged filter in one navigation. */
+  function applyFilters() {
+    const next = new URLSearchParams(params.toString())
+    for (const [k, v] of Object.entries(filterDraft)) {
+      if (v) next.set(k, v)
+      else next.delete(k)
+    }
+    next.delete('page')
+    router.push(`/sheets/${sheet.id}?${next.toString()}`)
+    setShowFilters(false)
+  }
+
+  function clearFilters() {
+    setSearch('')
+    setFilterDraft({ district: '', list: '', assigned: '', region: '', due: '' })
+    setShowFilters(false)
+    router.push(`/sheets/${sheet.id}`)
+  }
 
   async function saveCell(rowId: string, key: string, value: string | number | null) {
     const before = rows
@@ -293,6 +326,56 @@ export default function SheetView({
     return selected.has(rowId) && selected.size > 1 ? [...selected] : [rowId]
   }
 
+  /**
+   * Admin-only. "move" relabels the rows where they are; "copy" also puts a
+   * second row in the destination sheet, for a school that genuinely belongs
+   * to both lists - a primary target that is also on the mass call list.
+   */
+  async function reassignList(listType: string, mode: 'move' | 'copy') {
+    const label = LIST_LABELS[listType] ?? listType
+    const verb = mode === 'copy' ? 'Copy' : 'Move'
+    if (!confirm(`${verb} ${selected.size} row(s) to ${label}?`)) return
+
+    let targetSheetId: string | null = null
+    if (mode === 'copy') {
+      const name = prompt(
+        `Which sheet should the copies go into?\n\nType a sheet name exactly. Available:\n${allSheets
+          .map((s) => s.name)
+          .join('\n')}`
+      )
+      if (!name) return
+      const hit = allSheets.find((s) => s.name.toLowerCase() === name.trim().toLowerCase())
+      if (!hit) {
+        setToast(`No sheet called "${name}"`)
+        setTimeout(() => setToast(null), 4000)
+        return
+      }
+      targetSheetId = hit.id
+    }
+
+    setAssigning(true)
+    const res = await fetch('/api/schools/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope: 'ids', ids: [...selected], listType, mode, targetSheetId }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setAssigning(false)
+    if (!res.ok) {
+      setToast(data.error ?? 'Could not do that')
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
+    const n = mode === 'copy' ? data.copied : data.moved
+    setToast(
+      `${n} row(s) ${mode === 'copy' ? 'copied into' : 'moved to'} ${label}` +
+        (data.alreadyThere ? ` (${data.alreadyThere} were already there)` : '')
+    )
+    setTimeout(() => setToast(null), 5000)
+    setSelected(new Set())
+    router.refresh()
+  }
+
   /** Put one of the viewer's own marks on, or take it off, the ticked rows. */
   async function applyTag(tagId: string, on: boolean) {
     const res = await fetch(`/api/personal/tags/${tagId}`, {
@@ -383,7 +466,10 @@ export default function SheetView({
       case 'entityType':
         return Object.entries(ENTITY_LABELS).map(([value, label]) => ({ value, label }))
       case 'listType':
-        return Object.entries(LIST_LABELS).map(([value, label]) => ({ value, label }))
+        // Read-only for members - only an admin retypes a school's list.
+        return isAdmin
+          ? Object.entries(LIST_LABELS).map(([value, label]) => ({ value, label }))
+          : null
       case 'regionCategory':
         return Object.entries(REGION_LABELS).map(([value, label]) => ({ value, label }))
       default:
@@ -473,6 +559,29 @@ export default function SheetView({
             ))}
           </select>
 
+          {isAdmin && (
+            <select
+              className="input w-auto"
+              defaultValue=""
+              disabled={assigning}
+              onChange={(e) => {
+                if (!e.target.value) return
+                const [listType, mode] = e.target.value.split(':')
+                reassignList(listType, mode as 'move' | 'copy')
+                e.target.value = ''
+              }}
+              aria-label="Move or copy the selected rows to another list"
+            >
+              <option value="">Move or copy to...</option>
+              {Object.entries(LIST_LABELS).map(([v, l]) => (
+                <option key={`m-${v}`} value={`${v}:move`}>Move to {l}</option>
+              ))}
+              {Object.entries(LIST_LABELS).map(([v, l]) => (
+                <option key={`c-${v}`} value={`${v}:copy`}>Copy into {l} (keep here too)</option>
+              ))}
+            </select>
+          )}
+
           {myTags.length > 0 && (
             <select
               className="input w-auto"
@@ -523,7 +632,7 @@ export default function SheetView({
         myTags={myTags}
       />
 
-      {/* Filters */}
+      {/* Search stays out in the open; the rest folds behind one button. */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <form
           className="flex items-center gap-1"
@@ -567,47 +676,123 @@ export default function SheetView({
           </button>
         </form>
 
-        <select className="input w-auto" value={params.get('district') ?? ''} onChange={(e) => setParam('district', e.target.value)}>
-          <option value="">All districts</option>
-          {districts.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
-
-        <select className="input w-auto" value={params.get('list') ?? ''} onChange={(e) => setParam('list', e.target.value)}>
-          <option value="">All lists</option>
-          {Object.entries(LIST_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
-        </select>
-
-        <select className="input w-auto" value={params.get('assigned') ?? ''} onChange={(e) => setParam('assigned', e.target.value)}>
-          <option value="">Anyone</option>
-          <option value="none">Unassigned</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>{u.name}</option>
-          ))}
-        </select>
-
         <button
           type="button"
           className="btn btn-ghost"
-          style={params.get('due') === '1' ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : {}}
-          onClick={() => setParam('due', params.get('due') === '1' ? '' : '1')}
+          onClick={() => setShowFilters((v) => !v)}
+          style={
+            activeFilters.length > 0
+              ? { background: 'var(--accent-soft)', color: 'var(--accent)' }
+              : {}
+          }
+          aria-expanded={showFilters}
         >
-          Follow-ups due
+          <SlidersHorizontal size={15} />
+          Filters
+          {activeFilters.length > 0 && ` (${activeFilters.length})`}
         </button>
 
         {activeFilters.length > 0 && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => { setSearch(''); router.push(`/sheets/${sheet.id}`) }}
-          >
+          <button type="button" className="btn btn-ghost" onClick={clearFilters}>
             <X size={14} /> Clear
           </button>
         )}
       </div>
+
+      {showFilters && (
+        <div className="card mb-3 p-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="label" htmlFor="f-district">District</label>
+              <select
+                id="f-district"
+                className="input"
+                value={filterDraft.district}
+                onChange={(e) =>
+                  setFilterDraft((f) => ({ ...f, district: e.target.value }))
+                }
+              >
+                <option value="">All districts</option>
+                {districts.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="f-region">Region</label>
+              <select
+                id="f-region"
+                className="input"
+                value={filterDraft.region}
+                onChange={(e) => setFilterDraft((f) => ({ ...f, region: e.target.value }))}
+              >
+                <option value="">All regions</option>
+                {Object.entries(REGION_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="f-list">Sheet type</label>
+              <select
+                id="f-list"
+                className="input"
+                value={filterDraft.list}
+                onChange={(e) => setFilterDraft((f) => ({ ...f, list: e.target.value }))}
+              >
+                <option value="">All types</option>
+                {Object.entries(LIST_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="f-assigned">Assigned to</label>
+              <select
+                id="f-assigned"
+                className="input"
+                value={filterDraft.assigned}
+                onChange={(e) =>
+                  setFilterDraft((f) => ({ ...f, assigned: e.target.value }))
+                }
+              >
+                <option value="">Anyone</option>
+                <option value="none">Unassigned</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={filterDraft.due === '1'}
+              onChange={(e) =>
+                setFilterDraft((f) => ({ ...f, due: e.target.checked ? '1' : '' }))
+              }
+            />
+            Only schools whose follow-up is due
+          </label>
+
+          <div className="mt-3 flex gap-2">
+            <button type="button" className="btn btn-primary" onClick={applyFilters}>
+              Filter
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setShowFilters(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {showCols && (
         <div className="card mb-3 p-3">

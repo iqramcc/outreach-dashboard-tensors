@@ -49,6 +49,7 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
     prefs,
     users,
     districts,
+    allSheets,
     myColours,
     myTags,
   ] = await Promise.all([
@@ -83,6 +84,11 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
       distinct: ['district'],
       select: { district: true },
       orderBy: { district: 'asc' },
+    }),
+    prisma.sheet.findMany({
+      where: { isArchived: false },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
     }),
     // This viewer's own colours - nobody else's view is affected by them.
     prisma.userStatusColor.findMany({
@@ -126,6 +132,7 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
       statuses={statuses}
       users={users}
       districts={districts.map((d) => d.district).filter(Boolean) as string[]}
+      allSheets={allSheets}
       myColours={Object.fromEntries(myColours.map((c) => [c.statusId, c.hex]))}
       myTags={myTags.map((t) => ({
         id: t.id,

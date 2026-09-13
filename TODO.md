@@ -137,7 +137,7 @@ sheet**. Labels only; the stored values stay put.
 
 ## 1. Search and filter show no change · ☑ fixed
 
-## 2. Filters behind one button · ☐
+## 2. Filters behind one button · ☑ done
 One button in the first view; clicking it expands the detail, with a final
 "Filter" button to apply.
 
@@ -157,7 +157,7 @@ Add NA, and make free text obvious.
 "give option to copy or merge to existing row to the new" — ask what this means
 before building.
 
-## 7. Changing a sheet's type belongs to admin only · ☐
+## 7. Changing a sheet's type belongs to admin only · ☑ done
 Remove list-type editing from the member grid. In admin, offer either keeping
 the rows in both this sheet and the Primary Target sheet, or moving them
 entirely. Same options for every sheet type.

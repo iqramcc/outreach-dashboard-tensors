@@ -130,6 +130,15 @@ export async function PATCH(request: Request, ctx: RouteContext<'/api/schools/[i
     if (!ENUM_FIELDS[key].includes(String(value))) {
       return Response.json({ error: 'Invalid value' }, { status: 400 })
     }
+    // Which list a school belongs to is a targeting decision for the team, not
+    // day-to-day data entry. Admins change it in bulk, with the choice of
+    // moving the row or copying it so it sits in both lists.
+    if (key === 'listType' && user.role !== 'ADMIN') {
+      return Response.json(
+        { error: 'Only an admin can change which list a school is in' },
+        { status: 403 }
+      )
+    }
     data[key] = value
   } else if (TEXT_FIELDS.has(key)) {
     const s = value === null || value === '' ? null : String(value)
