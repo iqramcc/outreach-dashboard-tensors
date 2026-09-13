@@ -598,6 +598,8 @@ export default function SheetView({
           sheetName={sheet.name}
           statuses={statuses}
           districts={districts}
+          customColumns={columns.filter((c) => !c.isCore)}
+          existingCount={total}
           onClose={() => setAdding(false)}
           onCreated={() => router.refresh()}
         />

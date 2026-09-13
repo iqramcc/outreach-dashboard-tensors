@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { AlertTriangle, Plus, X } from 'lucide-react'
 import { districtsFor, REGION_LABELS } from '@/lib/regions'
 import type { RegionCategory } from '@prisma/client'
 import type { Status } from '@/app/(app)/sheets/[id]/SheetView'
+import type { ResolvedColumn } from '@/lib/columns'
+import NewColumnInline, { type CreatedColumn } from './NewColumnInline'
 
 /**
  * Add one school by hand, into this sheet or any other.
@@ -12,11 +15,28 @@ import type { Status } from '@/app/(app)/sheets/[id]/SheetView'
  * The duplicate check here warns rather than blocks: the same school name in a
  * different district is a different school, so the final call is the user's.
  */
+/** A freshly created column, shaped like the ones the grid already knows. */
+function toResolved(c: CreatedColumn): ResolvedColumn {
+  return {
+    id: c.id,
+    key: c.key,
+    label: c.label,
+    type: c.type as ResolvedColumn['type'],
+    isCore: false,
+    isVisible: true,
+    order: 999,
+    width: null,
+    options: c.options,
+  }
+}
+
 export default function AddRowDialog({
   sheetId,
   sheetName,
   statuses,
   districts,
+  customColumns,
+  existingCount,
   onClose,
   onCreated,
 }: {
@@ -24,9 +44,13 @@ export default function AddRowDialog({
   sheetName: string
   statuses: Status[]
   districts: string[]
+  /** Columns beyond the built-in ones, so nothing the team added is missing here. */
+  customColumns: ResolvedColumn[]
+  existingCount: number
   onClose: () => void
   onCreated: () => void
 }) {
+  const router = useRouter()
   const [form, setForm] = useState({
     name: '',
     district: districts[0] ?? '',
@@ -44,6 +68,11 @@ export default function AddRowDialog({
   const [error, setError] = useState<string | null>(null)
   const [dupWarning, setDupWarning] = useState<string | null>(null)
 
+  // Values for custom columns, plus any field invented here and then.
+  const [extra, setExtra] = useState<Record<string, string>>({})
+  const [added, setAdded] = useState<CreatedColumn[]>([])
+  const [addingField, setAddingField] = useState(false)
+
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }))
   }
@@ -59,7 +88,7 @@ export default function AddRowDialog({
       const res = await fetch('/api/schools', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, sheetId, force }),
+        body: JSON.stringify({ ...form, extra, sheetId, force }),
       })
       const data = await res.json()
       if (res.status === 409) {
@@ -196,6 +225,71 @@ export default function AddRowDialog({
             <label className="label" htmlFor="ar-remarks">Remarks</label>
             <textarea id="ar-remarks" className="input" rows={2} value={form.remarks} onChange={(e) => set('remarks', e.target.value)} />
           </div>
+
+          {/* Custom columns, including any just invented. */}
+          {[...customColumns, ...added.map(toResolved)].length > 0 && (
+            <div className="grid grid-cols-2 gap-3 border-t pt-3">
+              {[...customColumns, ...added.map(toResolved)].map((c) => (
+                <div key={c.key}>
+                  <label className="label" htmlFor={`ar-x-${c.key}`}>{c.label}</label>
+                  {c.type === 'SELECT' && c.options?.length ? (
+                    <select
+                      id={`ar-x-${c.key}`}
+                      className="input"
+                      value={extra[c.key] ?? ''}
+                      onChange={(e) => setExtra((x) => ({ ...x, [c.key]: e.target.value }))}
+                    >
+                      <option value="">—</option>
+                      {c.options.map((o) => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <>
+                      <input
+                        id={`ar-x-${c.key}`}
+                        className="input"
+                        list={c.options?.length ? `ar-opts-${c.key}` : undefined}
+                        value={extra[c.key] ?? ''}
+                        onChange={(e) => setExtra((x) => ({ ...x, [c.key]: e.target.value }))}
+                      />
+                      {c.options?.length ? (
+                        <datalist id={`ar-opts-${c.key}`}>
+                          {c.options.map((o) => (
+                            <option key={o} value={o} />
+                          ))}
+                        </datalist>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Item 12: somewhere to put something the sheet has no column for. */}
+          {addingField ? (
+            <NewColumnInline
+              sheetId={sheetId}
+              sheetName={sheetName}
+              existingCount={existingCount}
+              onCancel={() => setAddingField(false)}
+              onCreated={(col, value) => {
+                setAdded((a) => [...a, col])
+                if (value) setExtra((x) => ({ ...x, [col.key]: value }))
+                setAddingField(false)
+                router.refresh()
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-ghost py-1 text-xs"
+              onClick={() => setAddingField(true)}
+            >
+              <Plus size={13} /> Need another field?
+            </button>
+          )}
 
           {dupWarning && (
             <div className="flex gap-2 rounded-md border p-2.5 text-xs" style={{ borderColor: 'var(--danger)' }}>

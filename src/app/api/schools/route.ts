@@ -18,6 +18,8 @@ const Body = z.object({
   connection: z.string().nullish(),
   remarks: z.string().nullish(),
   statusId: z.string().nullish(),
+  /** Values for custom columns, keyed by ColumnDef.key. */
+  extra: z.record(z.string(), z.string()).optional(),
   /** Warn rather than block - the user decides whether it is really a dupe. */
   force: z.boolean().default(false),
 })
@@ -76,6 +78,7 @@ export async function POST(request: Request) {
       connection: b.connection || null,
       remarks: b.remarks || null,
       statusId,
+      extra: b.extra ?? {},
       createdById: user.id,
     },
     include: { status: true, assignedTo: { select: { id: true, name: true } } },

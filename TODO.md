@@ -50,10 +50,12 @@ sheet also now requires confirming the exact number of rows it will destroy.
 Built-in columns cannot be deleted or retyped; the dashboard is calculated
 from them.
 
-## 12. Add row — more columns than exist · ☐
-Allow adding a value for a column that doesn't exist yet. Warn that it isn't in
-the current list, offer to backfill a chosen value onto all existing rows, and
-offer the same field-type choice as item 11.
+## 12. Add row — more columns than exist · ☑ done
+Add row now shows every custom column, plus "Need another field?" which
+creates one on the spot with the same type choice as item 11. It warns that
+the field is new to every school, and offers to fill the existing rows — this
+sheet or the whole database. Backfill only touches rows that are blank, so a
+value someone already typed is never overwritten.
 
 ## 13. Reorder rows in a sheet · ☐
 Drag to reorder, and a serial-number box (typing a number moves the row there
