@@ -22,9 +22,12 @@ type Preview = {
 /**
  * Shown before anything is added to a mail or message list.
  *
- * It answers the two questions a member actually has: what of mine ends up on
- * the admin's sheet, and is anything missing? Compulsory gaps have to be filled
- * here - the alternative is an export the admin cannot send.
+ * Every selected school is listed with every field the list takes, filled in
+ * from the sheet and editable - so the member can see exactly what the admin
+ * will receive, and correct it, rather than only being shown the gaps.
+ *
+ * Compulsory gaps have to be closed here: the alternative is an export the
+ * admin cannot send.
  */
 export default function AddToListDialog({
   listId,
@@ -41,8 +44,9 @@ export default function AddToListDialog({
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  /** { schoolId: { field: value } } */
+  /** Only what the member actually changed: { schoolId: { field: value } } */
   const [typed, setTyped] = useState<Record<string, Record<string, string>>>({})
+  const [onlyGaps, setOnlyGaps] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -77,18 +81,18 @@ export default function AddToListDialog({
     setTyped((t) => ({ ...t, [schoolId]: { ...(t[schoolId] ?? {}), [key]: value } }))
   }
 
-  const requiredFields = preview?.fields.filter((f) => f.required) ?? []
-  const optionalFields = preview?.fields.filter((f) => !f.required) ?? []
+  const fields = preview?.fields ?? []
+  const required = fields.filter((f) => f.required)
+
+  const isIncomplete = useCallback(
+    (s: SchoolPreview) => required.some((f) => valueOf(s, f.key).trim() === ''),
+    [required, valueOf]
+  )
 
   // Recomputed as they type, so the button unlocks the moment the last gap closes.
-  const stillMissing =
-    preview?.schools.filter((s) =>
-      requiredFields.some((f) => valueOf(s, f.key).trim() === '')
-    ) ?? []
-
-  const unfixable = stillMissing.filter((s) =>
-    requiredFields.some((f) => !f.fillable && valueOf(s, f.key).trim() === '')
-  )
+  const stillMissing = preview?.schools.filter(isIncomplete) ?? []
+  const shown = onlyGaps ? stillMissing : (preview?.schools ?? [])
+  const editedCount = Object.values(typed).filter((v) => Object.keys(v).length > 0).length
 
   async function submit() {
     if (!preview) return
@@ -127,7 +131,7 @@ export default function AddToListDialog({
       onClick={onClose}
     >
       <div
-        className="card w-full max-w-3xl overflow-hidden"
+        className="card flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -142,131 +146,139 @@ export default function AddToListDialog({
           </button>
         </div>
 
-        <div className="thin-scroll max-h-[70vh] overflow-auto p-4">
+        <div className="thin-scroll flex-1 overflow-auto p-4">
           {loading && (
             <p className="text-sm" style={{ color: 'var(--muted)' }}>
               Checking what this list needs...
             </p>
           )}
 
-          {preview && (
+          {preview && fields.length === 0 && (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              This list does not ask for any fields yet. An admin sets those under
+              Lists &rarr; Fields.
+            </p>
+          )}
+
+          {preview && fields.length > 0 && (
             <>
-              <p className="label">What goes to the admin from each school</p>
-              <div className="mb-3 flex flex-wrap gap-1.5">
-                {requiredFields.map((f) => (
+              <p className="mb-2 text-xs" style={{ color: 'var(--muted)' }}>
+                This is exactly what the admin receives for each school. Everything is
+                filled in from the sheet and can be edited &mdash; a change is saved on the
+                school too, not just on this list. <strong>*</strong> is compulsory.
+              </p>
+
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                {stillMissing.length > 0 ? (
                   <span
-                    key={f.key}
-                    className="rounded-md px-2 py-1 text-xs font-medium"
-                    style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
+                    className="flex items-center gap-1.5 text-sm"
+                    style={{ color: 'var(--danger)' }}
                   >
-                    {f.label} *
+                    <AlertTriangle size={14} />
+                    {stillMissing.length} school
+                    {stillMissing.length === 1 ? '' : 's'} missing something compulsory
                   </span>
-                ))}
-                {optionalFields.map((f) => (
+                ) : (
                   <span
-                    key={f.key}
-                    className="rounded-md px-2 py-1 text-xs"
-                    style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                    className="flex items-center gap-1.5 text-sm"
+                    style={{ color: 'var(--accent)' }}
                   >
-                    {f.label}
+                    <Check size={14} /> Nothing missing
                   </span>
-                ))}
-                {preview.fields.length === 0 && (
-                  <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                    This list asks for nothing yet.
+                )}
+
+                {stillMissing.length > 0 && (
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={onlyGaps}
+                      onChange={(e) => setOnlyGaps(e.target.checked)}
+                    />
+                    Show only the ones needing attention
+                  </label>
+                )}
+
+                {editedCount > 0 && (
+                  <span className="ml-auto text-xs" style={{ color: 'var(--muted)' }}>
+                    {editedCount} school{editedCount === 1 ? '' : 's'} edited
                   </span>
                 )}
               </div>
-              <p className="mb-3 text-xs" style={{ color: 'var(--muted)' }}>
-                <strong>*</strong> is compulsory. Everything else is exported when it is
-                there. Values are filled in from the sheet automatically.
-              </p>
 
-              {stillMissing.length === 0 ? (
-                <p
-                  className="flex items-center gap-1.5 rounded-md border p-2.5 text-sm"
-                  style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                >
-                  <Check size={15} />
-                  Nothing missing &mdash; every school has what this list needs.
-                </p>
-              ) : (
-                <>
-                  <p
-                    className="mb-2 flex items-start gap-1.5 text-sm"
-                    style={{ color: 'var(--danger)' }}
+              <div className="thin-scroll overflow-auto rounded-md border">
+                <table className="w-full text-xs">
+                  <thead
+                    className="sticky top-0 z-10"
+                    style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}
                   >
-                    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                    {stillMissing.length} school
-                    {stillMissing.length === 1 ? ' is' : 's are'} missing something compulsory.
-                    Fill it in below &mdash; it is saved on the school too, so you will not be
-                    asked again.
-                  </p>
-
-                  <div className="thin-scroll max-h-80 overflow-auto rounded-md border">
-                    <table className="w-full text-xs">
-                      <thead
-                        className="sticky top-0"
-                        style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}
+                    <tr>
+                      <th
+                        className="sticky left-0 z-20 px-2 py-1.5 text-left font-medium"
+                        style={{ background: 'var(--surface-2)', minWidth: '12rem' }}
                       >
-                        <tr>
-                          <th className="px-2 py-1.5 text-left font-medium">School</th>
-                          {requiredFields.map((f) => (
-                            <th key={f.key} className="px-2 py-1.5 text-left font-medium">
-                              {f.label} *
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stillMissing.map((s) => (
-                          <tr key={s.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
-                            <td className="px-2 py-1 align-top">
-                              {s.name}
-                              {s.alreadyOnList && (
-                                <span className="ml-1" style={{ color: 'var(--muted)' }}>
-                                  (already on the list)
+                        School
+                      </th>
+                      {fields.map((f) => (
+                        <th
+                          key={f.key}
+                          className="px-2 py-1.5 text-left font-medium whitespace-nowrap"
+                          style={{ minWidth: '10rem' }}
+                        >
+                          {f.label}
+                          {f.required && <span style={{ color: 'var(--danger)' }}> *</span>}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shown.map((s) => (
+                      <tr key={s.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
+                        <td
+                          className="sticky left-0 z-10 px-2 py-1 align-middle"
+                          style={{ background: 'var(--surface)' }}
+                        >
+                          <span className="block truncate" title={s.name}>
+                            {s.name}
+                          </span>
+                          {s.alreadyOnList && (
+                            <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                              already on this list
+                            </span>
+                          )}
+                        </td>
+                        {fields.map((f) => {
+                          const v = valueOf(s, f.key)
+                          const blank = v.trim() === ''
+                          const bad = blank && f.required
+                          return (
+                            <td key={f.key} className="px-2 py-1">
+                              {f.fillable ? (
+                                <input
+                                  className="input py-0.5 text-xs"
+                                  value={v}
+                                  onChange={(e) => setValue(s.id, f.key, e.target.value)}
+                                  placeholder={bad ? `${f.label} needed` : '—'}
+                                  style={bad ? { borderColor: 'var(--danger)' } : undefined}
+                                  aria-label={`${f.label} for ${s.name}`}
+                                />
+                              ) : (
+                                // Numbers, enums and relations are not sensible to
+                                // type here; they are set on the school itself.
+                                <span
+                                  title="Set this on the school"
+                                  style={{ color: bad ? 'var(--danger)' : 'var(--muted)' }}
+                                >
+                                  {v || 'set on the school'}
                                 </span>
                               )}
                             </td>
-                            {requiredFields.map((f) => {
-                              const v = valueOf(s, f.key)
-                              const blank = v.trim() === ''
-                              return (
-                                <td key={f.key} className="px-2 py-1">
-                                  {f.fillable ? (
-                                    <input
-                                      className="input py-0.5 text-xs"
-                                      value={v}
-                                      onChange={(e) => setValue(s.id, f.key, e.target.value)}
-                                      placeholder={blank ? `${f.label} needed` : ''}
-                                      style={
-                                        blank ? { borderColor: 'var(--danger)' } : undefined
-                                      }
-                                      aria-label={`${f.label} for ${s.name}`}
-                                    />
-                                  ) : (
-                                    <span style={{ color: blank ? 'var(--danger)' : undefined }}>
-                                      {blank ? 'set this on the school' : v}
-                                    </span>
-                                  )}
-                                </td>
-                              )
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-
-              {unfixable.length > 0 && (
-                <p className="mt-2 text-xs" style={{ color: 'var(--danger)' }}>
-                  {unfixable.length} school(s) need a field that cannot be typed here. Open the
-                  school and set it, then try again.
-                </p>
-              )}
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 

@@ -48,7 +48,11 @@ Every school also has a **Numbers** panel. Add as many as you like — office, p
 
 Tick some rows, then **Add to list…**.
 
-A dialog opens showing exactly what reaches the admin from each school. Anything marked **\*** is compulsory. If a school is missing one, you'll be asked to type it before you can add — and what you type is **saved onto the school**, so you're not asked again next time.
+A dialog opens showing every school you picked with everything the admin will receive, already filled in from the sheet.
+
+All of it is editable — so if you spot a wrong email while you're there, fix it. Anything you change is **saved onto the school**, not just onto this list.
+
+Fields marked **\*** are compulsory. You can't add until all of them are filled, and there's a tick box to show only the schools still needing attention.
 
 ---
 

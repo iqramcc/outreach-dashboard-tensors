@@ -87,16 +87,21 @@ export async function POST(request: Request, ctx: RouteContext<'/api/campaigns/[
 
     for (const [key, raw] of Object.entries(typed)) {
       const value = String(raw).trim()
-      if (!value) continue
+      // An empty box the member actually edited is a deliberate clear. Only
+      // keys they touched reach this loop, so this cannot blank a field by
+      // accident. The one exception is the name, which nothing may erase.
+      const clearing = value === ''
 
       if (isCoreKey(key)) {
         if (!WRITABLE_CORE.has(key)) continue
-        data[key] = value
+        if (clearing && key === 'name') continue
+        data[key] = clearing ? null : value
         // Keep the duplicate-detection keys in step with what they mirror.
         if (key === 'name') data.nameKey = toNameKey(value)
-        if (key === 'contact') data.contactKey = toContactKey(value)
+        if (key === 'contact') data.contactKey = clearing ? null : toContactKey(value)
       } else {
-        extra[key] = value
+        if (clearing) delete extra[key]
+        else extra[key] = value
         touchedExtra = true
       }
     }
