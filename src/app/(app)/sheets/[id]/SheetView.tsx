@@ -767,7 +767,7 @@ export default function SheetView({
         <p className="mb-2 text-xs" style={{ color: 'var(--muted)' }}>
           {virtual
             ? 'This view is assembled from the sheets below it, so nothing here is a copy. Open the sheet itself to reorder or add rows.'
-            : 'Drag a row by its number to reorder it, or type a number to send it there. Tick several rows to move them together.'}
+            : 'To move a row, type a new number over its row number. Tick several rows to move them as a block. On a computer you can also drag a row by its number.'}
         </p>
       )}
 
@@ -947,8 +947,8 @@ export default function SheetView({
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <p className="label mb-0">Your columns</p>
             <span className="text-xs" style={{ color: 'var(--muted)' }}>
-              Click to show or hide. Use the arrows, or drag a heading in the table, to
-              reorder. Only you see this layout.
+              Tap to show or hide. The arrows reorder them - or drag a heading in the table
+              on a computer. Only you see this layout.
             </span>
             <button
               type="button"
@@ -1003,7 +1003,7 @@ export default function SheetView({
       )}
 
       {/* The grid */}
-      <div className="card thin-scroll overflow-auto" style={{ maxHeight: 'calc(100vh - 19rem)' }}>
+      <div className="card thin-scroll h-screen-safe overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10">
             <tr style={{ background: 'var(--surface-2)' }}>
@@ -1047,7 +1047,7 @@ export default function SheetView({
                     boxShadow:
                       dragCol && dragCol !== c.key ? 'inset 2px 0 0 var(--accent)' : undefined,
                   }}
-                  title="Drag to reorder"
+                  title="Drag to reorder (use the arrows under Columns on a touch screen)"
                 >
                   {c.label}
                 </th>

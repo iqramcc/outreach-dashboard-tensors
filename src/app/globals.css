@@ -153,3 +153,53 @@ body {
     color: var(--muted);
   }
 }
+
+/* ---------------------------------------------------------------- mobile --
+   Touch devices, not narrow windows: a phone and a small desktop window need
+   different things, and `pointer: coarse` is what actually distinguishes them.
+*/
+@media (pointer: coarse) {
+  /*
+    iOS zooms the whole page in whenever a field smaller than 16px is focused,
+    and does not zoom back out. In a grid of inputs that is unusable, so every
+    control goes to 16px on touch while desktop keeps the denser 14px.
+  */
+  .input,
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Roughly a fingertip. Icon-only buttons are otherwise ~20px. */
+  .btn {
+    min-height: 40px;
+  }
+  table button:not(.btn),
+  .tap {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  /* Checkboxes in the grid are hit targets, not decorations. */
+  input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/*
+  Mobile browsers shrink the viewport as their chrome slides away, so `vh`
+  measures a height the user cannot always see. `dvh` follows the visible area.
+  The vh line stays first as a fallback for anything that lacks dvh.
+*/
+.h-screen-safe {
+  max-height: calc(100vh - 19rem);
+  max-height: calc(100dvh - 19rem);
+}
+
+/* Nothing should ever scroll the page sideways; only the grid scrolls. */
+html,
+body {
+  overflow-x: hidden;
+}

@@ -131,7 +131,7 @@ export default function AddToListDialog({
       onClick={onClose}
     >
       <div
-        className="card flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden"
+        className="card flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

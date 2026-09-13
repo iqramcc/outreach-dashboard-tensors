@@ -81,7 +81,7 @@ export default async function SchoolPage(props: PageProps<'/schools/[id]'>) {
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="card p-4 lg:col-span-2">
           <h2 className="mb-3 text-sm font-semibold">Details</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:grid-cols-3">
             <Field label="Type" value={ENTITY_LABELS[school.entityType]} />
             <Field label="Finance type" value={school.financeType} />
             <Field label="Board" value={school.schoolType} />

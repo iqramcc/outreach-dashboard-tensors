@@ -127,7 +127,7 @@ export default function AddRowDialog({
           </button>
         </div>
 
-        <div className="thin-scroll max-h-[70vh] space-y-3 overflow-auto p-4">
+        <div className="thin-scroll max-h-[70dvh] space-y-3 overflow-auto p-4">
           <div>
             <label className="label" htmlFor="ar-name">School / institution name *</label>
             <input
@@ -139,7 +139,7 @@ export default function AddRowDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="ar-region">Region</label>
               <select
@@ -170,7 +170,7 @@ export default function AddRowDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="ar-type">Type</label>
               <select id="ar-type" className="input" value={form.entityType} onChange={(e) => set('entityType', e.target.value)}>
@@ -189,7 +189,7 @@ export default function AddRowDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="ar-contact">Contact</label>
               <input id="ar-contact" className="input" value={form.contact} onChange={(e) => set('contact', e.target.value)} />
@@ -200,7 +200,7 @@ export default function AddRowDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="ar-poc">POC from the school</label>
               <input id="ar-poc" className="input" value={form.pocName} onChange={(e) => set('pocName', e.target.value)} />
@@ -228,7 +228,7 @@ export default function AddRowDialog({
 
           {/* Custom columns, including any just invented. */}
           {[...customColumns, ...added.map(toResolved)].length > 0 && (
-            <div className="grid grid-cols-2 gap-3 border-t pt-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 border-t pt-3">
               {[...customColumns, ...added.map(toResolved)].map((c) => (
                 <div key={c.key}>
                   <label className="label" htmlFor={`ar-x-${c.key}`}>{c.label}</label>
