@@ -112,7 +112,6 @@ export default async function DashboardPage() {
     'OTHER_STATE',
   ]
   const regionCounts = new Map(byRegion.map((r) => [r.regionCategory, r._count]))
-  const maxDistrict = Math.max(1, ...[...districtRows.values()].map((d) => d.total))
   const notContacted = total - contactedTotal
 
   return (
@@ -241,14 +240,6 @@ export default async function DashboardPage() {
                             >
                               {d.district}
                             </Link>
-                            <span
-                              className="ml-2 inline-block h-1 rounded-full align-middle"
-                              style={{
-                                width: `${Math.max(4, (d.total / maxDistrict) * 90)}px`,
-                                background: 'var(--accent)',
-                                opacity: 0.35,
-                              }}
-                            />
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{d.total}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">
