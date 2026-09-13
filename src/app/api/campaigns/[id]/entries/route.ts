@@ -19,6 +19,8 @@ const Body = z.object({
    * half-usable reaches the admin's export.
    */
   requireComplete: z.boolean().default(false),
+  /** Per school: a note for whoever sends this batch. */
+  notes: z.record(z.string(), z.string()).optional(),
 })
 
 /**
@@ -113,6 +115,8 @@ export async function POST(request: Request, ctx: RouteContext<'/api/campaigns/[
   }
   if (schoolWrites.length > 0) await prisma.$transaction(schoolWrites)
 
+  const notes = parsed.data.notes ?? {}
+
   const res = await prisma.campaignEntry.createMany({
     data: schools.map((s) => ({
       listId: id,
@@ -121,10 +125,23 @@ export async function POST(request: Request, ctx: RouteContext<'/api/campaigns/[
       // The values now live on the school, so the entry holds no copy of them
       // and the export always reflects the school as it stands today.
       data: {},
+      note: notes[s.id]?.trim() || null,
     })),
     // Already on the list is success, not a duplicate row.
     skipDuplicates: true,
   })
+
+  // createMany skips rows already on the list, so a comment left for one of
+  // those would be dropped. Apply those separately.
+  const noteWrites = schools
+    .filter((s) => notes[s.id] !== undefined)
+    .map((s) =>
+      prisma.campaignEntry.updateMany({
+        where: { listId: id, schoolId: s.id },
+        data: { note: notes[s.id]?.trim() || null },
+      })
+    )
+  if (noteWrites.length > 0) await prisma.$transaction(noteWrites)
 
   return Response.json({
     ok: true,

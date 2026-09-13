@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { apiUser } from '@/lib/auth'
+import { isReservedColumnName } from '@/lib/columns'
 import { prisma } from '@/lib/db'
 
 const Body = z.object({
@@ -32,6 +33,16 @@ export async function PATCH(request: Request, ctx: RouteContext<'/api/columns/[i
   const { id } = await ctx.params
   const parsed = Body.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return Response.json({ error: 'Bad request' }, { status: 400 })
+
+  if (parsed.data.label && isReservedColumnName(parsed.data.label)) {
+    return Response.json(
+      {
+        error:
+          '"Comment" is reserved. Mail and message lists have their own comment box; use Remarks for a note that belongs to the school.',
+      },
+      { status: 400 }
+    )
+  }
 
   const existing = await prisma.columnDef.findUnique({ where: { id } })
   if (!existing) return Response.json({ error: 'Not found' }, { status: 404 })

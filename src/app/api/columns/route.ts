@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { apiUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { toColumnKey } from '@/lib/columns'
+import { isReservedColumnName, toColumnKey } from '@/lib/columns'
 
 const Body = z.object({
   label: z.string().min(1, 'Give the column a name'),
@@ -34,6 +34,18 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return Response.json(
       { error: parsed.error.issues[0]?.message ?? 'Bad request' },
+      { status: 400 }
+    )
+  }
+
+  // Lists carry their own per-send comment; a school column of the same name
+  // would sit beside it meaning something different.
+  if (isReservedColumnName(parsed.data.label)) {
+    return Response.json(
+      {
+        error:
+          '"Comment" is reserved. Mail and message lists have their own comment box; use Remarks for a note that belongs to the school.',
+      },
       { status: 400 }
     )
   }

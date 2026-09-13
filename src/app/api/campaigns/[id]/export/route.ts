@@ -54,6 +54,7 @@ export async function GET(request: Request, ctx: RouteContext<'/api/campaigns/[i
 
   ws.columns = [
     ...fields.map((f) => ({ header: labels.get(f) ?? f, key: f, width: 24 })),
+    { header: 'Comment', key: '__note', width: 30 },
     { header: 'Status', key: '__status', width: 10 },
     { header: 'Added by', key: '__by', width: 16 },
     { header: 'Missing', key: '__missing', width: 20 },
@@ -72,6 +73,7 @@ export async function GET(request: Request, ctx: RouteContext<'/api/campaigns/[i
 
     const row: Record<string, string> = {}
     for (const f of fields) row[f] = fieldValue(e.school, overrides, f)
+    row.__note = e.note ?? ''
     row.__status = e.status
     row.__by = e.addedBy?.name ?? ''
     // Named rather than flagged, so it is obvious what to go and fill in.

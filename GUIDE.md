@@ -54,6 +54,10 @@ All of it is editable — so if you spot a wrong email while you're there, fix i
 
 Fields marked **\*** are compulsory. You can't add until all of them are filled, and there's a tick box to show only the schools still needing attention.
 
+There's also a **Comment** box on each row — optional, for anything the person sending should know ("call the office first"). It stays with that list and doesn't touch the school.
+
+> **Comment** and **Comments** can't be used as column names, so the two don't get confused. For a note that belongs to the school itself, use **Remarks**.
+
 ---
 
 ## Making it yours

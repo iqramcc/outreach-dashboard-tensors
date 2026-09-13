@@ -55,6 +55,7 @@ export default async function CampaignViewPage(props: PageProps<'/admin/campaign
       schoolId: e.school.id,
       schoolName: e.school.name,
       status: e.status,
+      note: e.note ?? '',
       sentAt: e.sentAt ? e.sentAt.toISOString() : null,
       addedBy: e.addedBy?.name ?? null,
       values,

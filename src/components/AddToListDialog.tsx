@@ -11,6 +11,8 @@ type SchoolPreview = {
   values: Record<string, string>
   missingRequired: string[]
   alreadyOnList: boolean
+  /** A note already saved for this school on this list. */
+  note: string
 }
 
 type Preview = {
@@ -47,6 +49,8 @@ export default function AddToListDialog({
   /** Only what the member actually changed: { schoolId: { field: value } } */
   const [typed, setTyped] = useState<Record<string, Record<string, string>>>({})
   const [onlyGaps, setOnlyGaps] = useState(false)
+  /** Optional note per school, for whoever sends the batch. */
+  const [notes, setNotes] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -81,6 +85,8 @@ export default function AddToListDialog({
     setTyped((t) => ({ ...t, [schoolId]: { ...(t[schoolId] ?? {}), [key]: value } }))
   }
 
+  const noteOf = (s: SchoolPreview) => notes[s.id] ?? s.note ?? ''
+
   const fields = preview?.fields ?? []
   const required = fields.filter((f) => f.required)
 
@@ -106,6 +112,7 @@ export default function AddToListDialog({
           schoolIds,
           on: true,
           overrides: typed,
+          notes,
           requireComplete: true,
         }),
       })
@@ -166,6 +173,7 @@ export default function AddToListDialog({
                 This is exactly what the admin receives for each school. Everything is
                 filled in from the sheet and can be edited &mdash; a change is saved on the
                 school too, not just on this list. <strong>*</strong> is compulsory.
+                The comment is optional and stays with this list only.
               </p>
 
               <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -228,6 +236,12 @@ export default function AddToListDialog({
                           {f.required && <span style={{ color: 'var(--danger)' }}> *</span>}
                         </th>
                       ))}
+                      <th
+                        className="px-2 py-1.5 text-left font-medium whitespace-nowrap"
+                        style={{ minWidth: '14rem' }}
+                      >
+                        Comment
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -274,6 +288,17 @@ export default function AddToListDialog({
                             </td>
                           )
                         })}
+                        <td className="px-2 py-1">
+                          <input
+                            className="input py-0.5 text-xs"
+                            value={noteOf(s)}
+                            onChange={(e) =>
+                              setNotes((n) => ({ ...n, [s.id]: e.target.value }))
+                            }
+                            placeholder="Anything the sender should know"
+                            aria-label={`Comment for ${s.name}`}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -10,6 +10,7 @@ export type EntryRow = {
   schoolId: string
   schoolName: string
   status: string
+  note: string
   sentAt: string | null
   addedBy: string | null
   values: Record<string, string>
@@ -154,6 +155,7 @@ export default function CampaignEntries({
                   {f.required && <span style={{ color: 'var(--danger)' }}> *</span>}
                 </th>
               ))}
+              <th className="px-3 py-2 text-left text-xs font-medium">Comment</th>
               <th className="px-3 py-2 text-left text-xs font-medium">Added by</th>
             </tr>
           </thead>
@@ -201,6 +203,9 @@ export default function CampaignEntries({
                     )}
                   </td>
                 ))}
+                <td className="px-3 py-1.5 text-xs">
+                  {r.note || <span style={{ color: 'var(--muted)' }}>&mdash;</span>}
+                </td>
                 <td className="px-3 py-1.5 text-xs" style={{ color: 'var(--muted)' }}>
                   {r.addedBy ?? '—'}
                 </td>
@@ -210,7 +215,7 @@ export default function CampaignEntries({
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={fields.length + 3}
+                  colSpan={fields.length + 4}
                   className="px-3 py-8 text-center"
                   style={{ color: 'var(--muted)' }}
                 >

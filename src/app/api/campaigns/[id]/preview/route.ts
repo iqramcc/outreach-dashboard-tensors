@@ -38,9 +38,10 @@ export async function POST(request: Request, ctx: RouteContext<'/api/campaigns/[
   const schools = await prisma.school.findMany({ where: { id: { in: parsed.data.schoolIds } } })
   const already = await prisma.campaignEntry.findMany({
     where: { listId: id, schoolId: { in: parsed.data.schoolIds } },
-    select: { schoolId: true },
+    select: { schoolId: true, note: true },
   })
   const onList = new Set(already.map((a) => a.schoolId))
+  const notes = new Map(already.map((a) => [a.schoolId, a.note ?? '']))
 
   const describe = (key: string, isRequired: boolean) => ({
     key,
@@ -65,6 +66,7 @@ export async function POST(request: Request, ctx: RouteContext<'/api/campaigns/[
         values,
         missingRequired: missingFields(s, {}, required),
         alreadyOnList: onList.has(s.id),
+        note: notes.get(s.id) ?? '',
       }
     }),
   })

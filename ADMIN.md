@@ -92,6 +92,8 @@ Step 4 is the one that matters. Without it, the next export contains the same sc
 
 *Not sent, ready only* leaves out schools still missing a compulsory field. The export names which field each one is missing.
 
+Whoever adds a school can leave a **comment** for you — it shows on the list page and in the export, and belongs to that list only.
+
 ---
 
 ## Progress

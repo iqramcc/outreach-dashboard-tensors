@@ -386,6 +386,12 @@ model CampaignEntry {
    * stale copy of data that has since been corrected on the school itself.
    */
   data      Json                @default("{}")
+  /**
+   * A note from whoever added this school, for the admin who sends the batch -
+   * "call the office first", "principal knows Ikram". Belongs to this entry
+   * rather than to the school, so it cannot leak into an unrelated list.
+   */
+  note      String?
   createdAt DateTime            @default(now())
 
   list    CampaignList @relation(fields: [listId], references: [id], onDelete: Cascade)

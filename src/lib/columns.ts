@@ -151,3 +151,17 @@ export type DedupeKey = (typeof DEDUPE_COLUMNS)[number]['key']
 
 /** Their rule: same name in a different district is a different school. */
 export const DEFAULT_DEDUPE_KEYS: DedupeKey[] = ['name', 'district']
+
+/**
+ * Column names nobody may create.
+ *
+ * Mail and message lists carry their own per-entry comment, and a school
+ * column called "comment" would sit beside it meaning something different -
+ * one attached to the school forever, one to a single send. Reserving the
+ * name keeps the distinction obvious.
+ */
+export const RESERVED_COLUMN_KEYS = new Set(['comment', 'comments'])
+
+export function isReservedColumnName(label: string): boolean {
+  return RESERVED_COLUMN_KEYS.has(toColumnKey(label).replace(/_custom$/, ''))
+}
