@@ -106,7 +106,7 @@ export default function UsersAdmin({ meId, users }: { meId: string; users: Row[]
           <Link href="/admin/users" className="btn btn-ghost" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
             Users
           </Link>
-          <Link href="/admin/columns" className="btn btn-ghost">Columns</Link>
+          <Link href="/columns" className="btn btn-ghost">Columns</Link>
         </nav>
       </div>
 

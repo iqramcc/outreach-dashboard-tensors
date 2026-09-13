@@ -38,11 +38,17 @@ How do you search within one list?
 
 ## 10. Add row → Connection: drop the "eg: ikram 11th n 12th" placeholder · ☑ done
 
-## 11. Let members add columns (not just admins) · ☐
-Field types: text, dropdown with preset options, or dropdown + free text.
-Goal: the team never has to come back to us for a simple column change.
-**Constraint:** members must not be able to do anything that could destroy the
-database. Ask Ikram if unsure where to draw the line.
+## 11. Let members add columns (not just admins) · ☑ done
+Columns moved out of /admin to /columns, open to everyone. Members can add a
+column (text, long text, number, phone, email, date, fixed dropdown, or
+dropdown + free text with their own options), rename, reorder and hide, and
+can create and rename sheets.
+
+Held back to admins, because each one loses data or resets shared meaning:
+deleting a column, deleting a sheet, and editing the colour key. Deleting a
+sheet also now requires confirming the exact number of rows it will destroy.
+Built-in columns cannot be deleted or retyped; the dashboard is calculated
+from them.
 
 ## 12. Add row — more columns than exist · ☐
 Allow adding a value for a column that doesn't exist yet. Warn that it isn't in

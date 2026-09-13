@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { LayoutDashboard, LogOut, Menu, Settings, Table2, Upload, X } from 'lucide-react'
+import { Columns3, LayoutDashboard, LogOut, Menu, Settings, Table2, Upload, X } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 
 type Sheet = { id: string; name: string }
@@ -23,8 +23,9 @@ export default function NavBar({
   const links = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/sheets', label: 'Sheets', icon: Table2 },
+    { href: '/columns', label: 'Columns', icon: Columns3 },
     ...(isAdmin ? [{ href: '/import', label: 'Import', icon: Upload }] : []),
-    ...(isAdmin ? [{ href: '/admin/users', label: 'Admin', icon: Settings }] : []),
+    ...(isAdmin ? [{ href: '/admin/users', label: 'Team', icon: Settings }] : []),
   ]
 
   function active(href: string) {

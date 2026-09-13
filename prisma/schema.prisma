@@ -44,7 +44,8 @@ enum ColumnType {
   NUMBER
   PHONE
   EMAIL
-  SELECT
+  SELECT // strict dropdown - only the listed options
+  SELECT_FREE // dropdown you can also type past
   DATE
   CHECKBOX
 }

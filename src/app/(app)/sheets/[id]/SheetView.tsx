@@ -284,6 +284,10 @@ export default function SheetView({
       case 'regionCategory':
         return Object.entries(REGION_LABELS).map(([value, label]) => ({ value, label }))
       default:
+        // SELECT_FREE is deliberately not a <select>: it renders as a text box
+        // with the options as suggestions, so the team can add a value nobody
+        // anticipated without an admin.
+        if (col.type === 'SELECT_FREE') return null
         return col.options ? col.options.map((o) => ({ value: o, label: o })) : null
     }
   }
@@ -549,7 +553,7 @@ export default function SheetView({
                     column={c}
                     display={cellValue(row, c)}
                     rawValue={rawCellValue(row, c)}
-                    suggestions={SUGGESTIONS[c.key] ?? null}
+                    suggestions={SUGGESTIONS[c.key] ?? c.options ?? null}
                     color={c.key === 'status' ? (row.status?.hex ?? null) : (row.cellColors?.[c.key] ?? null)}
                     options={optionsFor(c)}
                     onSave={(v) => saveCell(row.id, c.key, v)}
