@@ -8,22 +8,87 @@ list, and a logged history of every call.
 
 ## Running it
 
+> Already set up on a machine? Just `npm run dev`. The steps below are for a
+> fresh clone or a new server.
+
+**1. Install the dependencies**
+
 ```bash
 npm install
-cp .env.example .env      # then set DATABASE_URL and JWT_SECRET
-npx prisma migrate deploy
-npm run db:seed           # creates the first admin + the colour legend
+```
+
+**2. Create your settings file**
+
+The app reads its settings from a file called `.env`. That file is deliberately
+kept out of git, because it holds passwords — so a fresh clone doesn't have one.
+`.env.example` is the same file with fake values, and is safe to copy from:
+
+```bash
+cp .env.example .env          # Git Bash / Mac / Linux
+copy .env.example .env        # Windows Command Prompt
+Copy-Item .env.example .env   # Windows PowerShell
+```
+
+Now open `.env` in any text editor. Four things matter:
+
+| Setting | What to put |
+|---|---|
+| `DATABASE_URL` | Where your PostgreSQL is — see below |
+| `JWT_SECRET` | Any long random string. Generate one with the command below |
+| `ADMIN_EMAIL` | The first admin's login |
+| `ADMIN_PASSWORD` | Their password. Change it after the first login |
+
+Generate a secret (works anywhere Node is installed):
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Paste the output between the quotes on the `JWT_SECRET` line. It only signs login
+cookies — nobody has to remember it — but changing it later signs everyone out.
+
+**3. Set up the database**
+
+```bash
+npx prisma migrate deploy   # creates the tables
+npm run db:seed             # creates the first admin, colour key and mail lists
+```
+
+**4. Start it**
+
+```bash
 npm run dev
 ```
 
 Open http://localhost:3000 and sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD`
-from `.env`. **Change that password immediately after the first login.**
+from your `.env`. **Change that password immediately after the first login.**
 
-### Database
+### DATABASE_URL
 
-Any PostgreSQL will do — set one `DATABASE_URL`. Local Postgres, `docker compose up -d db`
-(a Postgres service is included), or a free Neon/Supabase instance when you deploy.
-Nothing else in the app assumes a host, so moving it later is a connection-string change.
+The shape is:
+
+```
+postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME?schema=public
+```
+
+Any PostgreSQL works. On a machine with Postgres installed locally, create the
+database once:
+
+```sql
+CREATE DATABASE olympiad;
+CREATE USER olympiad WITH PASSWORD 'olympiad';
+GRANT ALL PRIVILEGES ON DATABASE olympiad TO olympiad;
+\c olympiad
+GRANT ALL ON SCHEMA public TO olympiad;
+ALTER SCHEMA public OWNER TO olympiad;
+```
+
+...which matches the `DATABASE_URL` already in `.env.example`. `docker compose up -d db`
+starts an equivalent one if you'd rather not install Postgres, and a hosted
+Neon or Supabase database gives you a URL to paste in when you deploy.
+
+Nothing else in the app assumes a host, so moving it later is a
+connection-string change and nothing more.
 
 ## Roles
 
