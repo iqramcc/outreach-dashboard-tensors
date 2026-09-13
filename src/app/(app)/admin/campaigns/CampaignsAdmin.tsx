@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Check, Download, Plus, Send, Settings2, Trash2 } from 'lucide-react'
+import { AlertTriangle, Download, Eye, Plus, Send, Settings2, Trash2 } from 'lucide-react'
+import Link from 'next/link'
 
 export type CampaignRow = {
   id: string
@@ -113,15 +114,23 @@ export default function CampaignsAdmin({
     router.refresh()
   }
 
-  /** Toggle a column in or out of a list's required / optional set. */
-  function toggleField(l: CampaignRow, key: string, which: 'requiredFields' | 'optionalFields') {
-    const current = l[which]
-    const next = current.includes(key)
-      ? current.filter((k) => k !== key)
-      : [...current, key]
-    // A field is one or the other, never both.
-    const other = which === 'requiredFields' ? 'optionalFields' : 'requiredFields'
-    save(l.id, { [which]: next, [other]: l[other].filter((k) => k !== key) })
+  /**
+   * Every column is in exactly one of three states for a list, chosen outright
+   * rather than cycled through: off it, compulsory, or there but up to the
+   * member. Keeping the two lists disjoint is this function's job.
+   */
+  function setFieldMode(l: CampaignRow, key: string, mode: 'off' | 'required' | 'optional') {
+    const required = l.requiredFields.filter((k) => k !== key)
+    const optional = l.optionalFields.filter((k) => k !== key)
+    if (mode === 'required') required.push(key)
+    if (mode === 'optional') optional.push(key)
+    save(l.id, { requiredFields: required, optionalFields: optional })
+  }
+
+  function modeOf(l: CampaignRow, key: string): 'off' | 'required' | 'optional' {
+    if (l.requiredFields.includes(key)) return 'required'
+    if (l.optionalFields.includes(key)) return 'optional'
+    return 'off'
   }
 
   return (
@@ -160,6 +169,9 @@ export default function CampaignsAdmin({
               </div>
 
               <div className="flex flex-wrap gap-1.5">
+                <Link className="btn btn-ghost py-1 text-xs" href={`/admin/campaigns/${l.id}`}>
+                  <Eye size={13} /> View
+                </Link>
                 <a
                   className="btn btn-ghost py-1 text-xs"
                   href={`/api/campaigns/${l.id}/export?status=NEW`}
@@ -200,8 +212,10 @@ export default function CampaignsAdmin({
             </div>
 
             <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-              Needs: {l.requiredFields.map(label).join(', ') || 'nothing'}
-              {l.optionalFields.length > 0 && <> &middot; also exports: {l.optionalFields.map(label).join(', ')}</>}
+              Compulsory: {l.requiredFields.map(label).join(', ') || 'nothing'}
+              {l.optionalFields.length > 0 && (
+                <> &middot; Member&apos;s choice: {l.optionalFields.map(label).join(', ')}</>
+              )}
             </p>
 
             {l.notReady > 0 && (
@@ -214,40 +228,58 @@ export default function CampaignsAdmin({
 
             {editing === l.id && (
               <div className="mt-3 border-t pt-3">
-                <p className="label">
-                  Click a column to cycle it: not included &rarr; required &rarr; also exported
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {columns.map((c) => {
-                    const isRequired = l.requiredFields.includes(c.key)
-                    const isOptional = l.optionalFields.includes(c.key)
-                    return (
-                      <button
-                        key={c.key}
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          toggleField(l, c.key, isRequired ? 'optionalFields' : 'requiredFields')
-                        }
-                        className="rounded-md border px-2 py-1 text-xs"
-                        style={
-                          isRequired
-                            ? { background: 'var(--accent)', color: 'var(--accent-text)', borderColor: 'transparent' }
-                            : isOptional
-                              ? { background: 'var(--accent-soft)', color: 'var(--accent)', borderColor: 'transparent' }
-                              : { color: 'var(--muted)' }
-                        }
-                        title={isRequired ? 'Required' : isOptional ? 'Also exported' : 'Not included'}
-                      >
-                        {isRequired && <Check size={11} className="mr-1 inline" />}
-                        {c.label}
-                      </button>
-                    )
-                  })}
+                <p className="label">What this list needs from each school</p>
+                <div className="thin-scroll max-h-72 overflow-auto rounded-md border">
+                  <table className="w-full text-xs">
+                    <thead
+                      className="sticky top-0"
+                      style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}
+                    >
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-medium">Column</th>
+                        <th className="px-2 py-1.5 text-left font-medium">In this list</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {columns.map((c) => {
+                        const mode = modeOf(l, c.key)
+                        return (
+                          <tr
+                            key={c.key}
+                            className="border-t"
+                            style={{ borderColor: 'var(--border)' }}
+                          >
+                            <td className="px-2 py-1">{c.label}</td>
+                            <td className="px-2 py-1">
+                              <select
+                                className="input py-0.5 text-xs"
+                                value={mode}
+                                disabled={busy}
+                                onChange={(e) =>
+                                  setFieldMode(
+                                    l,
+                                    c.key,
+                                    e.target.value as 'off' | 'required' | 'optional'
+                                  )
+                                }
+                                aria-label={`How ${c.label} is used in ${l.name}`}
+                              >
+                                <option value="off">Not used</option>
+                                <option value="required">Compulsory</option>
+                                <option value="optional">Up to the member</option>
+                              </select>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
                 <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-                  Solid = required, a school without it is flagged. Faded = exported when
-                  present but never blocks.
+                  <strong>Compulsory</strong> &mdash; a school without it is flagged as not
+                  ready, and the ready-only export leaves it out.{' '}
+                  <strong>Up to the member</strong> &mdash; exported when it is there, never
+                  blocks anything.
                 </p>
               </div>
             )}

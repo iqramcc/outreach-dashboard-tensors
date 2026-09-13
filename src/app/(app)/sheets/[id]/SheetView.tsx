@@ -3,7 +3,18 @@
 import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Columns3, Download, Plus, Search, SlidersHorizontal, UserPlus, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Columns3,
+  Download,
+  Plus,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  UserPlus,
+  X,
+} from 'lucide-react'
 import type { ResolvedColumn } from '@/lib/columns'
 import { REGION_LABELS } from '@/lib/regions'
 import Legend from '@/components/Legend'
@@ -170,6 +181,10 @@ export default function SheetView({
   const [dragIds, setDragIds] = useState<string[] | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [snDraft, setSnDraft] = useState<{ id: string; value: string } | null>(null)
+
+  // Column layout is this viewer's own: hiding a column or moving it left does
+  // not rearrange the grid for anyone else. Shared defaults live on /columns.
+  const [dragCol, setDragCol] = useState<string | null>(null)
   const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
 
   const visible = useMemo(() => columns.filter((c) => c.isVisible), [columns])
@@ -444,8 +459,61 @@ export default function SheetView({
     router.refresh()
   }
 
+  /** Save this viewer's layout. Fire-and-forget: the grid already moved. */
+  function savePrefs(next: ResolvedColumn[]) {
+    const prefs = next
+      .filter((c) => c.id)
+      .map((c, i) => ({ columnDefId: c.id as string, isVisible: c.isVisible, order: i }))
+    if (prefs.length === 0) return
+    fetch('/api/columns/prefs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prefs }),
+    }).catch(() => {
+      setToast('Could not save your column layout')
+      setTimeout(() => setToast(null), 4000)
+    })
+  }
+
   function toggleColumn(key: string) {
-    setColumns((cs) => cs.map((c) => (c.key === key ? { ...c, isVisible: !c.isVisible } : c)))
+    setColumns((cs) => {
+      const next = cs.map((c) => (c.key === key ? { ...c, isVisible: !c.isVisible } : c))
+      savePrefs(next)
+      return next
+    })
+  }
+
+  /** Move a column to sit where another one is. */
+  function moveColumn(fromKey: string, toKey: string) {
+    if (fromKey === toKey) return
+    setColumns((cs) => {
+      const next = [...cs]
+      const from = next.findIndex((c) => c.key === fromKey)
+      const to = next.findIndex((c) => c.key === toKey)
+      if (from < 0 || to < 0) return cs
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      savePrefs(next)
+      return next
+    })
+  }
+
+  /** Nudge one step, for touch and keyboard where dragging is awkward. */
+  function nudgeColumn(key: string, dir: -1 | 1) {
+    setColumns((cs) => {
+      const next = [...cs]
+      const i = next.findIndex((c) => c.key === key)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= next.length) return cs
+      ;[next[i], next[j]] = [next[j], next[i]]
+      savePrefs(next)
+      return next
+    })
+  }
+
+  async function resetColumns() {
+    await fetch('/api/columns/prefs', { method: 'DELETE' })
+    router.refresh()
   }
 
   function cellValue(row: Row, col: ResolvedColumn): string {
@@ -879,22 +947,59 @@ export default function SheetView({
 
       {showCols && (
         <div className="card mb-3 p-3">
-          <p className="label">Show columns</p>
-          <div className="flex flex-wrap gap-2">
-            {columns.map((c) => (
-              <button
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <p className="label mb-0">Your columns</p>
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>
+              Click to show or hide. Use the arrows, or drag a heading in the table, to
+              reorder. Only you see this layout.
+            </span>
+            <button
+              type="button"
+              className="btn btn-ghost ml-auto py-1 text-xs"
+              onClick={resetColumns}
+            >
+              <RotateCcw size={13} /> Reset to default
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {columns.map((c, i) => (
+              <span
                 key={c.key}
-                type="button"
-                onClick={() => toggleColumn(c.key)}
-                className="rounded-md border px-2 py-1 text-xs"
+                className="inline-flex items-center rounded-md border"
                 style={
                   c.isVisible
-                    ? { background: 'var(--accent-soft)', color: 'var(--accent)', borderColor: 'transparent' }
-                    : { color: 'var(--muted)' }
+                    ? { background: 'var(--accent-soft)', borderColor: 'transparent' }
+                    : {}
                 }
               >
-                {c.label}
-              </button>
+                <button
+                  type="button"
+                  className="px-1 py-1 disabled:opacity-30"
+                  onClick={() => nudgeColumn(c.key, -1)}
+                  disabled={i === 0}
+                  aria-label={`Move ${c.label} left`}
+                >
+                  <ChevronLeft size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleColumn(c.key)}
+                  className="px-1 py-1 text-xs"
+                  style={c.isVisible ? { color: 'var(--accent)' } : { color: 'var(--muted)' }}
+                >
+                  {c.label}
+                </button>
+                <button
+                  type="button"
+                  className="px-1 py-1 disabled:opacity-30"
+                  onClick={() => nudgeColumn(c.key, 1)}
+                  disabled={i === columns.length - 1}
+                  aria-label={`Move ${c.label} right`}
+                >
+                  <ChevronRight size={12} />
+                </button>
+              </span>
             ))}
           </div>
         </div>
@@ -922,8 +1027,30 @@ export default function SheetView({
               {visible.map((c) => (
                 <th
                   key={c.key}
-                  className="border-b border-r px-2 py-2 text-left text-xs font-medium whitespace-nowrap"
-                  style={{ color: 'var(--muted)', minWidth: c.width ?? 140 }}
+                  draggable
+                  onDragStart={(e) => {
+                    setDragCol(c.key)
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('text/plain', c.key)
+                  }}
+                  onDragOver={(e) => {
+                    if (dragCol) e.preventDefault()
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    if (dragCol) moveColumn(dragCol, c.key)
+                    setDragCol(null)
+                  }}
+                  onDragEnd={() => setDragCol(null)}
+                  className="cursor-grab border-b border-r px-2 py-2 text-left text-xs font-medium whitespace-nowrap"
+                  style={{
+                    color: 'var(--muted)',
+                    minWidth: c.width ?? 140,
+                    opacity: dragCol === c.key ? 0.4 : 1,
+                    boxShadow:
+                      dragCol && dragCol !== c.key ? 'inset 2px 0 0 var(--accent)' : undefined,
+                  }}
+                  title="Drag to reorder"
                 >
                   {c.label}
                 </th>

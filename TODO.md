@@ -184,3 +184,21 @@ the team.
 Counts come from the colour key's own flags (isContacted, isPositive) rather
 than hardcoded status names, so renaming or adding a status keeps the report
 right. One grouped SQL query, not a few per member.
+
+---
+
+# Round 4
+
+## 1. Campaign fields: two clear options, and a view · ☑ done
+The cycling button is gone. Every column now has an outright choice per list:
+**Not used**, **Compulsory**, or **Up to the member**. Compulsory means a school
+without it is flagged as not ready and left out of the ready-only export;
+up-to-the-member is exported when present and never blocks.
+
+Each list also has its own page now (View), listing what is on it with New and
+Sent told apart, filter tabs, and per-row mark-sent / put-back / remove.
+
+## 2. Reorder columns in the sheet view · ☑ done
+Drag a column heading, or use the arrows in the Columns panel. Show/hide and
+order are saved per user, so one volunteer rearranging their grid does not move
+anyone else's. "Reset to default" goes back to the shared layout.
