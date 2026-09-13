@@ -1,8 +1,8 @@
 import ExcelJS from 'exceljs'
-import type { Prisma } from '@prisma/client'
 import { apiUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { resolveColumns } from '@/lib/columns'
+import { buildSchoolWhere, filterFromParams } from '@/lib/schoolFilter'
 import { REGION_LABELS } from '@/lib/regions'
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -27,28 +27,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const sheetId = url.searchParams.get('sheetId')
-  const q = (url.searchParams.get('q') ?? '').trim()
-
-  const where: Prisma.SchoolWhereInput = {}
-  if (sheetId) where.sheetId = sheetId
-  if (q) {
-    where.OR = [
-      { name: { contains: q, mode: 'insensitive' } },
-      { contact: { contains: q } },
-      { email: { contains: q, mode: 'insensitive' } },
-    ]
-  }
-  const district = url.searchParams.get('district')
-  if (district) where.district = district
-  const region = url.searchParams.get('region')
-  if (region) where.regionCategory = region as Prisma.SchoolWhereInput['regionCategory']
-  const list = url.searchParams.get('list')
-  if (list) where.listType = list as Prisma.SchoolWhereInput['listType']
-  const status = url.searchParams.get('status')
-  if (status) where.statusId = status === 'none' ? null : status
-  const assigned = url.searchParams.get('assigned')
-  if (assigned) where.assignedToId = assigned === 'none' ? null : assigned
-  if (url.searchParams.get('due') === '1') where.nextFollowUpAt = { lte: new Date() }
+  const where = buildSchoolWhere(filterFromParams(url.searchParams))
 
   const [sheet, schools, columnDefs] = await Promise.all([
     sheetId ? prisma.sheet.findUnique({ where: { id: sheetId } }) : null,

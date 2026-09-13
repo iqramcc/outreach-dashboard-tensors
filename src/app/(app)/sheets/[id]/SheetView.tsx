@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Columns3, Download, Plus, Search, X } from 'lucide-react'
+import { Columns3, Download, Plus, Search, UserPlus, X } from 'lucide-react'
 import type { ResolvedColumn } from '@/lib/columns'
 import { REGION_LABELS } from '@/lib/regions'
 import Legend from '@/components/Legend'
@@ -103,6 +103,11 @@ export default function SheetView({
   const [search, setSearch] = useState(params.get('q') ?? '')
   const [toast, setToast] = useState<string | null>(null)
 
+  // Row selection, for handing a stretch of the call list to one volunteer.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [assigning, setAssigning] = useState(false)
+  const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
+
   const visible = useMemo(() => columns.filter((c) => c.isVisible), [columns])
   const pages = Math.max(1, Math.ceil(total / pageSize))
 
@@ -152,6 +157,67 @@ export default function SheetView({
       setToast(data.error ?? 'Could not save that change')
       setTimeout(() => setToast(null), 4000)
     }
+  }
+
+  function toggleRow(id: string) {
+    setSelected((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAllOnPage() {
+    setSelected((s) => {
+      const next = new Set(s)
+      if (allOnPageSelected) rows.forEach((r) => next.delete(r.id))
+      else rows.forEach((r) => next.add(r.id))
+      return next
+    })
+  }
+
+  /**
+   * Assign either the ticked rows or everything matching the current filters.
+   * "filter" scope is what makes "give all 277 of Thiruvananthapuram to Amal"
+   * one action instead of three pages of ticking.
+   */
+  async function assignTo(userId: string, scope: 'ids' | 'filter') {
+    setAssigning(true)
+    const body =
+      scope === 'ids'
+        ? { scope, ids: [...selected], assignedToId: userId || null }
+        : {
+            scope,
+            assignedToId: userId || null,
+            filter: {
+              sheetId: sheet.id,
+              q: params.get('q'),
+              district: params.get('district'),
+              region: params.get('region'),
+              list: params.get('list'),
+              status: params.get('status'),
+              assigned: params.get('assigned'),
+              due: params.get('due'),
+            },
+          }
+    const res = await fetch('/api/schools/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    setAssigning(false)
+    if (!res.ok) {
+      setToast(data.error ?? 'Could not assign those rows')
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
+    const who = userId ? (users.find((u) => u.id === userId)?.name ?? 'someone') : 'nobody'
+    setToast(`${data.count} row(s) assigned to ${who}`)
+    setTimeout(() => setToast(null), 4000)
+    setSelected(new Set())
+    router.refresh()
   }
 
   function toggleColumn(key: string) {
@@ -246,6 +312,69 @@ export default function SheetView({
           </button>
         </div>
       </div>
+
+      {/* Bulk bar, only while something is ticked. */}
+      {selected.size > 0 && (
+        <div
+          className="mb-3 flex flex-wrap items-center gap-2 rounded-md border px-3 py-2"
+          style={{ borderColor: 'var(--accent)', background: 'var(--accent-soft)' }}
+        >
+          <UserPlus size={15} style={{ color: 'var(--accent)' }} />
+          <span className="text-sm font-medium">{selected.size} selected</span>
+          <select
+            className="input w-auto"
+            defaultValue=""
+            disabled={assigning}
+            onChange={(e) => {
+              if (e.target.value === '') return
+              const v = e.target.value === 'none' ? '' : e.target.value
+              assignTo(v, 'ids')
+              e.target.value = ''
+            }}
+            aria-label="Assign selected rows to"
+          >
+            <option value="">Assign selected to...</option>
+            <option value="none">Nobody (unassign)</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
+
+          <select
+            className="input w-auto"
+            defaultValue=""
+            disabled={assigning}
+            onChange={(e) => {
+              if (e.target.value === '') return
+              const v = e.target.value === 'none' ? '' : e.target.value
+              const label = v ? (users.find((u) => u.id === v)?.name ?? 'them') : 'nobody'
+              if (
+                confirm(
+                  `Assign all ${total.toLocaleString('en-IN')} rows matching the current filters to ${label}?`
+                )
+              ) {
+                assignTo(v, 'filter')
+              }
+              e.target.value = ''
+            }}
+            aria-label="Assign the whole filtered list to"
+          >
+            <option value="">Assign all {total.toLocaleString('en-IN')} matching to...</option>
+            <option value="none">Nobody (unassign)</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            className="btn btn-ghost py-1 text-xs"
+            onClick={() => setSelected(new Set())}
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
 
       <Legend statuses={statuses} isAdmin={isAdmin} activeId={params.get('status')} onFilter={(id) => setParam('status', id)} />
 
@@ -363,8 +492,19 @@ export default function SheetView({
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10">
             <tr style={{ background: 'var(--surface-2)' }}>
-              <th className="sticky left-0 z-20 w-10 border-b border-r px-2 py-2 text-xs font-medium" style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}>
-                #
+              <th
+                className="sticky left-0 z-20 w-16 border-b border-r px-2 py-2 text-xs font-medium"
+                style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}
+              >
+                <span className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={allOnPageSelected}
+                    onChange={toggleAllOnPage}
+                    aria-label="Select every row on this page"
+                  />
+                  #
+                </span>
               </th>
               {visible.map((c) => (
                 <th
@@ -384,7 +524,7 @@ export default function SheetView({
             {rows.map((row, i) => (
               <tr key={row.id} className="group" style={{ background: 'transparent' }}>
                 <td
-                  className="sticky left-0 z-10 border-b border-r px-2 py-1 text-center text-xs tabular-nums"
+                  className="sticky left-0 z-10 border-b border-r px-2 py-1 text-xs tabular-nums"
                   style={{
                     background: 'var(--surface)',
                     color: 'var(--muted)',
@@ -392,7 +532,15 @@ export default function SheetView({
                     boxShadow: row.status ? `inset 3px 0 0 ${row.status.hex}` : undefined,
                   }}
                 >
-                  {(page - 1) * pageSize + i + 1}
+                  <span className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.id)}
+                      onChange={() => toggleRow(row.id)}
+                      aria-label={`Select ${row.name}`}
+                    />
+                    {(page - 1) * pageSize + i + 1}
+                  </span>
                 </td>
                 {visible.map((c) => (
                   <EditableCell

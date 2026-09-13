@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
-import type { Prisma } from '@prisma/client'
 import { requireUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { resolveColumns, DEFAULT_VISIBLE } from '@/lib/columns'
+import { buildSchoolWhere } from '@/lib/schoolFilter'
 import SheetView from './SheetView'
 
 export const dynamic = 'force-dynamic'
@@ -30,23 +30,16 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
   const assigned = one(sp.assigned)
   const due = one(sp.due)
 
-  const where: Prisma.SchoolWhereInput = { sheetId: id }
-  if (q) {
-    where.OR = [
-      { name: { contains: q, mode: 'insensitive' } },
-      { contact: { contains: q } },
-      { email: { contains: q, mode: 'insensitive' } },
-      { pocName: { contains: q, mode: 'insensitive' } },
-      { connection: { contains: q, mode: 'insensitive' } },
-      { remarks: { contains: q, mode: 'insensitive' } },
-    ]
-  }
-  if (district) where.district = district
-  if (region) where.regionCategory = region as Prisma.SchoolWhereInput['regionCategory']
-  if (listType) where.listType = listType as Prisma.SchoolWhereInput['listType']
-  if (statusId) where.statusId = statusId === 'none' ? null : statusId
-  if (assigned) where.assignedToId = assigned === 'none' ? null : assigned
-  if (due === '1') where.nextFollowUpAt = { lte: new Date() }
+  const where = buildSchoolWhere({
+    sheetId: id,
+    q,
+    district,
+    region,
+    list: listType,
+    status: statusId,
+    assigned,
+    due,
+  })
 
   const [total, schools, statuses, columnDefs, prefs, users, districts] = await Promise.all([
     prisma.school.count({ where }),

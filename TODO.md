@@ -15,8 +15,10 @@ Tick items off as they land.
 row-by-row review. Four actions, overridable per row: skip / merge with the
 saved row winning / merge with the file winning / keep both.
 
-## 3. Assigning work · ☐
-Assign part of a list, or a whole list, to a specific member.
+## 3. Assigning work · ☑ done
+Tick rows and assign them, or assign the whole filtered list in one action
+("all 277 in Thiruvananthapuram"). Assigning a whole list requires a sheet, so
+nobody can hand the entire database to one person by accident.
 
 ## 5. School type is not editable · ☑ done
 (No item 4 in the original list.)
