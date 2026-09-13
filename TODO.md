@@ -163,7 +163,7 @@ Remove list-type editing from the member grid. In admin, offer either keeping
 the rows in both this sheet and the Primary Target sheet, or moving them
 entirely. Same options for every sheet type.
 
-## 8. Sheet navigation · ☐
+## 8. Sheet navigation · ☑ done (as views, nothing duplicated)
 ```
 Sheets by district & region
   Primary Target sheet   → full list + per-district sheets (if uploaded)

@@ -78,6 +78,7 @@ const LIST_LABELS: Record<string, string> = {
 
 export default function SheetView({
   sheet,
+  virtual = false,
   rows: initialRows,
   columns: initialColumns,
   statuses,
@@ -92,6 +93,12 @@ export default function SheetView({
   isAdmin,
 }: {
   sheet: { id: string; name: string; description: string | null }
+  /**
+   * True when this is a view assembled from a filter rather than a stored
+   * sheet. Such a view has no single sheet to add a row to, and no order of
+   * its own to drag rows into, so both are turned off.
+   */
+  virtual?: boolean
   rows: Row[]
   columns: ResolvedColumn[]
   statuses: Status[]
@@ -109,6 +116,9 @@ export default function SheetView({
 }) {
   const router = useRouter()
   const params = useSearchParams()
+
+  // A virtual view lives at /sheets/view; a stored sheet at /sheets/<id>.
+  const basePath = virtual ? '/sheets/view' : `/sheets/${sheet.id}`
 
   const [rows, setRows] = useState(initialRows)
   const [columns, setColumns] = useState(initialColumns)
@@ -181,9 +191,9 @@ export default function SheetView({
       if (value) next.set(key, value)
       else next.delete(key)
       if (key !== 'page') next.delete('page')
-      router.push(`/sheets/${sheet.id}?${next.toString()}`)
+      router.push(`${basePath}?${next.toString()}`)
     },
-    [params, router, sheet.id]
+    [params, router, basePath]
   )
 
   const activeFilters = ['q', 'district', 'region', 'list', 'status', 'assigned', 'due'].filter(
@@ -198,7 +208,7 @@ export default function SheetView({
       else next.delete(k)
     }
     next.delete('page')
-    router.push(`/sheets/${sheet.id}?${next.toString()}`)
+    router.push(`${basePath}?${next.toString()}`)
     setShowFilters(false)
   }
 
@@ -206,7 +216,7 @@ export default function SheetView({
     setSearch('')
     setFilterDraft({ district: '', list: '', assigned: '', region: '', due: '' })
     setShowFilters(false)
-    router.push(`/sheets/${sheet.id}`)
+    router.push(basePath)
   }
 
   async function saveCell(rowId: string, key: string, value: string | number | null) {
@@ -481,7 +491,9 @@ export default function SheetView({
     }
   }
 
-  const exportHref = `/api/export?sheetId=${sheet.id}&${params.toString()}`
+  const exportHref = `/api/export?${
+    sheet.id ? `sheetId=${sheet.id}&` : ''
+  }${params.toString()}`
 
   return (
     <main className="mx-auto w-full max-w-[100rem] p-3 sm:p-4">
@@ -500,9 +512,11 @@ export default function SheetView({
           <button className="btn btn-ghost" onClick={() => setShowCols((v) => !v)} type="button">
             <Columns3 size={15} /> <span className="hidden sm:inline">Columns</span>
           </button>
-          <button className="btn btn-primary" onClick={() => setAdding(true)} type="button">
-            <Plus size={15} /> Add row
-          </button>
+          {!virtual && (
+            <button className="btn btn-primary" onClick={() => setAdding(true)} type="button">
+              <Plus size={15} /> Add row
+            </button>
+          )}
         </div>
       </div>
 
@@ -618,8 +632,9 @@ export default function SheetView({
 
       {selected.size === 0 && (
         <p className="mb-2 text-xs" style={{ color: 'var(--muted)' }}>
-          Drag a row by its number to reorder it, or type a number to send it there.
-          Tick several rows to move them together.
+          {virtual
+            ? 'This view is assembled from the sheets below it, so nothing here is a copy. Open the sheet itself to reorder or add rows.'
+            : 'Drag a row by its number to reorder it, or type a number to send it there. Tick several rows to move them together.'}
         </p>
       )}
 
@@ -855,8 +870,9 @@ export default function SheetView({
               <tr
                 key={row.id}
                 className="group"
-                draggable
+                draggable={!virtual}
                 onDragStart={(e) => {
+                  if (virtual) return
                   const ids = dragPayload(row.id)
                   setDragIds(ids)
                   e.dataTransfer.effectAllowed = 'move'
@@ -864,13 +880,13 @@ export default function SheetView({
                   e.dataTransfer.setData('text/plain', ids.join(','))
                 }}
                 onDragOver={(e) => {
-                  if (!dragIds) return
+                  if (virtual || !dragIds) return
                   e.preventDefault()
                   setDropIndex(i)
                 }}
                 onDrop={(e) => {
                   e.preventDefault()
-                  if (!dragIds) return
+                  if (virtual || !dragIds) return
                   // Target counts within the whole sheet, not just this page.
                   moveRows(dragIds, (page - 1) * pageSize + i + 1)
                   setDragIds(null)
@@ -917,6 +933,7 @@ export default function SheetView({
                           ? snDraft.value
                           : String((page - 1) * pageSize + i + 1)
                       }
+                      readOnly={virtual}
                       onChange={(e) => setSnDraft({ id: row.id, value: e.target.value })}
                       onBlur={() => {
                         if (snDraft?.id !== row.id) return
