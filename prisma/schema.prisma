@@ -130,6 +130,10 @@ model School {
   pocRole    String?
   contact    String?
   contactKey String? // normalised digits, for duplicate matching
+  // Extra numbers beyond the primary one, each with an optional person name:
+  // [{ name?: string, number: string }]. Imported sheets only ever give one
+  // number, so this starts empty and is filled in while working.
+  contacts   Json    @default("[]")
   email      String?
   address    String?
   website    String?

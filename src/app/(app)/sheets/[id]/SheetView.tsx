@@ -37,6 +37,7 @@ export type Row = {
   nextFollowUpAt: string | null
   status: { id: string; name: string; hex: string } | null
   assignedTo: { id: string; name: string } | null
+  contacts: { name: string | null; number: string }[]
   extra: Record<string, string>
   cellColors: Record<string, string>
 }
@@ -236,6 +237,12 @@ export default function SheetView({
         return LIST_LABELS[row.listType] ?? row.listType
       case 'regionCategory':
         return REGION_LABELS[row.regionCategory as keyof typeof REGION_LABELS] ?? row.regionCategory
+      case 'contact': {
+        // The cell edits the main number; say when there are others.
+        const extraCount = row.contacts?.length ?? 0
+        if (!row.contact) return extraCount ? `+${extraCount} more` : ''
+        return extraCount ? `${row.contact}  +${extraCount}` : row.contact
+      }
       case 'nextFollowUpAt':
         return row.nextFollowUpAt ? row.nextFollowUpAt.slice(0, 10) : ''
       default: {
@@ -266,6 +273,8 @@ export default function SheetView({
         return row.listType
       case 'regionCategory':
         return row.regionCategory
+      case 'contact':
+        return row.contact ?? ''
       default:
         return cellValue(row, col)
     }

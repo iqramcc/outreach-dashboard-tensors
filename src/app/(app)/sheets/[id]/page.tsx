@@ -92,6 +92,7 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
         updatedAt: s.updatedAt.toISOString(),
         nextFollowUpAt: s.nextFollowUpAt ? s.nextFollowUpAt.toISOString() : null,
         lastContactedAt: s.lastContactedAt ? s.lastContactedAt.toISOString() : null,
+        contacts: (s.contacts as { name: string | null; number: string }[]) ?? [],
         extra: s.extra as Record<string, string>,
         cellColors: s.cellColors as Record<string, string>,
       }))}

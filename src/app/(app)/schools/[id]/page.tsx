@@ -5,6 +5,7 @@ import { requireUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { REGION_LABELS } from '@/lib/regions'
 import LogCallPanel from './LogCallPanel'
+import ContactsPanel, { type ContactEntry } from './ContactsPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -135,6 +136,12 @@ export default async function SchoolPage(props: PageProps<'/schools/[id]'>) {
         </section>
 
         <div className="space-y-4">
+          <ContactsPanel
+            schoolId={school.id}
+            primary={school.contact}
+            contacts={(school.contacts as ContactEntry[]) ?? []}
+          />
+
           <LogCallPanel
             schoolId={school.id}
             statuses={statuses}

@@ -32,9 +32,15 @@ const ENUM_FIELDS: Record<string, readonly string[]> = {
   listType: ['MASS_CALL', 'CONNECTED', 'OFFLINE_OUTREACH'],
 }
 
+/** One extra number, with the person's name when it is known. */
+const ContactEntry = z.object({
+  name: z.string().nullish(),
+  number: z.string().min(1),
+})
+
 const Body = z.object({
   key: z.string().min(1),
-  value: z.union([z.string(), z.number(), z.null()]),
+  value: z.union([z.string(), z.number(), z.null(), z.array(ContactEntry)]),
 })
 
 export async function PATCH(request: Request, ctx: RouteContext<'/api/schools/[id]'>) {
@@ -87,6 +93,15 @@ export async function PATCH(request: Request, ctx: RouteContext<'/api/schools/[i
         toStatusName: next?.name ?? null,
       },
     })
+  } else if (key === 'contacts') {
+    // Extra numbers live as a list; the primary one stays in the `contact`
+    // column, so imports and duplicate matching keep working unchanged.
+    if (!Array.isArray(value)) {
+      return Response.json({ error: 'Expected a list of contacts' }, { status: 400 })
+    }
+    data.contacts = value
+      .map((c) => ({ name: c.name?.trim() || null, number: String(c.number).trim() }))
+      .filter((c) => c.number)
   } else if (key === 'assignedTo') {
     data.assignedToId = value ? String(value) : null
   } else if (key === 'nextFollowUpAt') {

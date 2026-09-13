@@ -27,9 +27,11 @@ nobody can hand the entire database to one person by accident.
 Options: Government, Govt aided, High-class private, Private, + "other" free
 text. Point is consistent spelling across the team.
 
-## 7. Contacts — multiple numbers · ☐
-Allow more than one number, each with an optional contact-person name. Imported
-values stay as they are; the choice appears when editing.
+## 7. Contacts — multiple numbers · ☑ done
+A school page now has a Numbers panel: add as many numbers as you like, each
+with an optional person's name. The main number keeps its own column so
+imports and duplicate matching are unchanged, and the grid's Contact cell
+shows "9447365106 +2" when there are others.
 
 ## 8. Search is broken / no search icon · ☑ done
 How do you search within one list?
