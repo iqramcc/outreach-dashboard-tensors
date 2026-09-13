@@ -4,6 +4,8 @@ School outreach tracking for the Tensors Junior Olympiad. Replaces the shared Ex
 sheets: one link, district-wise progress across Kerala and Tamil Nadu, a worked call
 list, and a logged history of every call.
 
+**Using it:** [GUIDE.md](GUIDE.md) for the team, [ADMIN.md](ADMIN.md) for admins.
+
 ## Running it
 
 ```bash
@@ -77,7 +79,12 @@ Optional, and off changes nothing. When on you choose:
 - **which columns must all match** — default **school name + district**, because the same
   school name in a different district is a different school;
 - **scope** — the target sheet only, or the whole database;
-- **what to do** — skip, fill blanks on the existing row, or import anyway.
+- **what to do** — skip, merge with the saved row winning, merge with the file winning, or
+  keep both. Settable for the batch or per row after reviewing them.
+
+Merging only touches columns that come from the spreadsheet: status, assignment,
+follow-up date and registered students are the team's working state and are never
+overwritten by a file.
 
 It costs one indexed query per file, not one per row: a 2,600-row workbook re-checks in
 well under a second.
