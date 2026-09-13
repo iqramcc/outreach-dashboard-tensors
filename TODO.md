@@ -174,3 +174,13 @@ Sheets by assigned person
     Primary Target sheet → one combined list (few rows, no point splitting)
     Secondary sheet      → per-district sheets + combined (site-generated)
 ```
+
+## 9. Member progress report (admin) · ☑ done
+One table at /admin/progress: assigned, call pending, follow-up pending, total
+pending, confirmed, schools registered, students registered. Every column sorts
+both ways, every number links to the rows behind it, and the last row totals
+the team.
+
+Counts come from the colour key's own flags (isContacted, isPositive) rather
+than hardcoded status names, so renaming or adding a status keeps the report
+right. One grouped SQL query, not a few per member.
