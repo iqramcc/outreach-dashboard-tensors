@@ -20,6 +20,7 @@ import { REGION_LABELS } from '@/lib/regions'
 import Legend from '@/components/Legend'
 import AddRowDialog from '@/components/AddRowDialog'
 import EditableCell from '@/components/EditableCell'
+import AddToListDialog from '@/components/AddToListDialog'
 
 export type Status = { id: string; name: string; hex: string; order: number; isContacted: boolean; isPositive: boolean; isDefault: boolean }
 export type UserLite = { id: string; name: string }
@@ -185,6 +186,10 @@ export default function SheetView({
   // Column layout is this viewer's own: hiding a column or moving it left does
   // not rearrange the grid for anyone else. Shared defaults live on /columns.
   const [dragCol, setDragCol] = useState<string | null>(null)
+
+  // Adding to a list opens a dialog rather than firing straight away, so the
+  // member sees what the admin will get and fills any gaps first.
+  const [addingToList, setAddingToList] = useState<string | null>(null)
   const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
 
   const visible = useMemo(() => columns.filter((c) => c.isVisible), [columns])
@@ -413,13 +418,14 @@ export default function SheetView({
    * reported - the team usually adds the school first and chases the email
    * afterwards, and a silent omission would be worse than a warning.
    */
-  async function addToCampaign(listId: string, on: boolean) {
+  /** Taking schools off a list needs no dialog - nothing can be incomplete. */
+  async function removeFromCampaign(listId: string) {
     const list = campaigns.find((c) => c.id === listId)
     setAssigning(true)
     const res = await fetch(`/api/campaigns/${listId}/entries`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ schoolIds: [...selected], on }),
+      body: JSON.stringify({ schoolIds: [...selected], on: false }),
     })
     const data = await res.json().catch(() => ({}))
     setAssigning(false)
@@ -428,18 +434,8 @@ export default function SheetView({
       setTimeout(() => setToast(null), 4000)
       return
     }
-
-    if (!on) {
-      setToast(`${data.removed} removed from ${list?.name ?? 'the list'}`)
-    } else {
-      const bits = [`${data.added} added to ${list?.name ?? 'the list'}`]
-      if (data.alreadyThere) bits.push(`${data.alreadyThere} already there`)
-      if (data.notReady?.length) {
-        bits.push(`${data.notReady.length} missing something the list needs`)
-      }
-      setToast(bits.join(' · '))
-    }
-    setTimeout(() => setToast(null), 6000)
+    setToast(`${data.removed} removed from ${list?.name ?? 'the list'}`)
+    setTimeout(() => setToast(null), 5000)
     setSelected(new Set())
     router.refresh()
   }
@@ -715,7 +711,8 @@ export default function SheetView({
               onChange={(e) => {
                 if (!e.target.value) return
                 const [listId, mode] = e.target.value.split(':')
-                addToCampaign(listId, mode === 'add')
+                if (mode === 'add') setAddingToList(listId)
+                else removeFromCampaign(listId)
                 e.target.value = ''
               }}
               aria-label="Add the selected rows to a mail or message list"
@@ -1203,6 +1200,20 @@ export default function SheetView({
             Next
           </button>
         </div>
+      )}
+
+      {addingToList && (
+        <AddToListDialog
+          listId={addingToList}
+          schoolIds={[...selected]}
+          onClose={() => setAddingToList(null)}
+          onDone={(msg) => {
+            setToast(msg)
+            setTimeout(() => setToast(null), 6000)
+            setSelected(new Set())
+            router.refresh()
+          }}
+        />
       )}
 
       {adding && (

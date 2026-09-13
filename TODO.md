@@ -202,3 +202,14 @@ Sent told apart, filter tabs, and per-row mark-sent / put-back / remove.
 Drag a column heading, or use the arrows in the Columns panel. Show/hide and
 order are saved per user, so one volunteer rearranging their grid does not move
 anyone else's. "Reset to default" goes back to the shared layout.
+
+## 3. Adding to a list asks for the missing fields first · ☑ done
+Picking "Add to <list>" now opens a dialog instead of firing straight away. It
+shows exactly which columns reach the admin's sheet (compulsory marked *),
+fills them in from the sheet, and lists any school still missing something
+compulsory with a box to type it.
+
+The Add button stays disabled until every gap is closed, and the server refuses
+an incomplete batch too - so nothing half-usable can reach an export even from
+a stale page. What gets typed is saved onto the school itself, so the next list
+does not ask for it again.

@@ -49,3 +49,30 @@ export function isReady(
 ): boolean {
   return missingFields(school, overrides, required).length === 0
 }
+
+/**
+ * Fields a member may fill in from the add-to-list dialog, written back onto
+ * the school itself.
+ *
+ * If someone finally tracks down a school's email address, it belongs on the
+ * school - not buried in one mail list, where the next list would ask for it
+ * again. Numbers, enums and relations are deliberately absent: those are not
+ * things to be typed into a mail-merge dialog.
+ */
+export const WRITABLE_CORE = new Set([
+  'name',
+  'primaryPoc',
+  'schoolType',
+  'financeType',
+  'studentStrength',
+  'district',
+  'state',
+  'connection',
+  'pocName',
+  'pocRole',
+  'contact',
+  'email',
+  'address',
+  'website',
+  'remarks',
+])
