@@ -11,8 +11,8 @@ const ENTITY_LABELS: Record<string, string> = {
   OTHER: 'Other',
 }
 const LIST_LABELS: Record<string, string> = {
-  MASS_CALL: 'Mass call list',
-  CONNECTED: 'Connected school',
+  CONNECTED: 'Primary Target sheet',
+  MASS_CALL: 'Secondary sheet',
   OFFLINE_OUTREACH: 'Offline outreach',
 }
 

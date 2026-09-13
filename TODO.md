@@ -126,3 +126,50 @@ person gets a private overlay, reached by "My colours" above any sheet:
 Nobody else sees any of it, and it never reaches the pipeline figures — the
 dashboard still counts the shared statuses. Verified: a member's colour leaves
 the team colour untouched, and an admin gets 404 on another person's mark.
+
+---
+
+# Round 3
+
+## 0. Rename the two list types · ☑ done
+"Connected school" → **Primary Target sheet**. "Mass call list" → **Secondary
+sheet**. Labels only; the stored values stay put.
+
+## 1. Search and filter show no change · ☑ fixed
+
+## 2. Filters behind one button · ☐
+One button in the first view; clicking it expands the detail, with a final
+"Filter" button to apply.
+
+## 3. Mail / WhatsApp campaign lists · ☐
+Per row: add to "bulk mail list", "special mail list", "WhatsApp msg list".
+Admin can tell sent from new, and export each separately to Excel. Admin sets
+the required and optional fields per list, and can add new list types from
+their portal, reflected in the member view. Member view should auto-fill from
+the existing sheet where it can.
+
+## 4. "Check duplicates in the target sheet only" is not working · ☑ fixed
+
+## 5. Import district picker offers only the 14 districts · ☑ done
+Add NA, and make free text obvious.
+
+## 6. Column add — copy or merge into the new column · ☐ NEEDS CLARIFYING
+"give option to copy or merge to existing row to the new" — ask what this means
+before building.
+
+## 7. Changing a sheet's type belongs to admin only · ☐
+Remove list-type editing from the member grid. In admin, offer either keeping
+the rows in both this sheet and the Primary Target sheet, or moving them
+entirely. Same options for every sheet type.
+
+## 8. Sheet navigation · ☐
+```
+Sheets by district & region
+  Primary Target sheet   → full list + per-district sheets (if uploaded)
+  Secondary sheet        → per-district sheets
+Sheets by assigned person
+  <member>
+    Combined sheet       (site-generated, not admin-made)
+    Primary Target sheet → one combined list (few rows, no point splitting)
+    Secondary sheet      → per-district sheets + combined (site-generated)
+```

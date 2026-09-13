@@ -66,9 +66,13 @@ const SUGGESTIONS: Record<string, readonly string[]> = {
   pocRole: ['Principal', 'Vice Principal', 'HM', 'Teacher', 'Office', 'Other'],
 }
 
+/**
+ * The stored values stay MASS_CALL / CONNECTED; only what the team reads
+ * changed, so no migration and no re-import was needed to rename these.
+ */
 const LIST_LABELS: Record<string, string> = {
-  MASS_CALL: 'Mass call list',
-  CONNECTED: 'Connected school',
+  CONNECTED: 'Primary Target sheet',
+  MASS_CALL: 'Secondary sheet',
   OFFLINE_OUTREACH: 'Offline outreach',
 }
 
@@ -105,6 +109,25 @@ export default function SheetView({
 
   const [rows, setRows] = useState(initialRows)
   const [columns, setColumns] = useState(initialColumns)
+
+  // useState only reads its argument on the first render. Filtering and paging
+  // navigate, so the server sends fresh rows as new props - without this the
+  // grid kept showing the first page it ever loaded and searching looked dead.
+  // Synced during render rather than in an effect, which avoids a second pass.
+  const [syncedRows, setSyncedRows] = useState(initialRows)
+  if (syncedRows !== initialRows) {
+    setSyncedRows(initialRows)
+    setRows(initialRows)
+  }
+
+  // Columns resync only when the set of columns actually changes, so a column
+  // hidden by hand stays hidden while paging through the sheet.
+  const columnSig = initialColumns.map((c) => c.key).join('|')
+  const [syncedColumnSig, setSyncedColumnSig] = useState(columnSig)
+  if (syncedColumnSig !== columnSig) {
+    setSyncedColumnSig(columnSig)
+    setColumns(initialColumns)
+  }
   const [showCols, setShowCols] = useState(false)
   const [adding, setAdding] = useState(false)
   const [search, setSearch] = useState(params.get('q') ?? '')

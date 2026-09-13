@@ -68,16 +68,19 @@ export const DISTRICT_LABELS: Record<RegionCategory, string> = {
  * Suggestions only - district is free text, so an unexpected place name from an
  * Excel tab still imports cleanly instead of being rejected.
  */
+/** Offered everywhere a district is asked for, alongside the real ones. */
+export const DISTRICT_NA = 'NA'
+
 export function districtsFor(region: RegionCategory): readonly string[] {
   switch (region) {
     case 'KERALA':
-      return KERALA_DISTRICTS
+      return [...KERALA_DISTRICTS, DISTRICT_NA]
     case 'TAMIL_NADU':
-      return TN_DISTRICTS
+      return [...TN_DISTRICTS, DISTRICT_NA]
     case 'MIDDLE_EAST':
-      return MIDDLE_EAST_COUNTRIES
+      return [...MIDDLE_EAST_COUNTRIES, DISTRICT_NA]
     default:
-      return []
+      return [DISTRICT_NA]
   }
 }
 

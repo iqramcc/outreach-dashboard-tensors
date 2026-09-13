@@ -18,8 +18,8 @@ const TAB_GRID =
   'minmax(10rem,1.3fr) minmax(9rem,1.1fr) minmax(8rem,0.9fr) minmax(9rem,1.1fr) auto'
 
 const LIST_TYPES: [string, string][] = [
-  ['MASS_CALL', 'Mass call list'],
-  ['CONNECTED', 'Connected school'],
+  ['CONNECTED', 'Primary Target sheet'],
+  ['MASS_CALL', 'Secondary sheet'],
   ['OFFLINE_OUTREACH', 'Offline outreach'],
 ]
 
@@ -724,7 +724,7 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
                           <input
                             className="input"
                             list={`districts-${tab.name}`}
-                            placeholder="District"
+                            placeholder="Type any district, or NA"
                             value={plan.district ?? ''}
                             onChange={(e) =>
                               updatePlan(tab.name, { district: e.target.value || null })

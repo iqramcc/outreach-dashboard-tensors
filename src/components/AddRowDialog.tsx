@@ -182,8 +182,8 @@ export default function AddRowDialog({
             <div>
               <label className="label" htmlFor="ar-list">List</label>
               <select id="ar-list" className="input" value={form.listType} onChange={(e) => set('listType', e.target.value)}>
-                <option value="CONNECTED">Connected school</option>
-                <option value="MASS_CALL">Mass call list</option>
+                <option value="CONNECTED">Primary Target sheet</option>
+                <option value="MASS_CALL">Secondary sheet</option>
                 <option value="OFFLINE_OUTREACH">Offline outreach</option>
               </select>
             </div>

@@ -70,7 +70,7 @@ async function main() {
   if (sheetCount === 0) {
     await prisma.sheet.create({
       data: {
-        name: 'Connected Schools',
+        name: 'Primary Target Schools',
         description: 'Schools we have a personal connection with - primary targets.',
         order: 0,
         createdById: admin.id,
