@@ -59,7 +59,7 @@ the field is new to every school, and offers to fill the existing rows — this
 sheet or the whole database. Backfill only touches rows that are blank, so a
 value someone already typed is never overwritten.
 
-## 13. Reorder rows in a sheet · ☐ — design ready, awaiting the go-ahead
+## 13. Reorder rows in a sheet · ☑ done
 
 **The risk you asked about is real, but only for the naive version.** If the
 serial number were stored literally as 1, 2, 3, inserting at position 5 of a
@@ -88,7 +88,7 @@ covers exactly that case, which is why both are worth having.
 **Cost:** a `position` column plus an index, a backfill of existing rows, and
 switching the grid's sort from `createdAt` to `position`.
 
-## 14. Add row — insert at a position · ☐ — depends on 13
+## 14. Add row — insert at a position · ☑ done
 
 Add row itself works (verified: it saves, warns on a duplicate name in the same
 district, and lets you add anyway). Choosing where the new row lands needs the

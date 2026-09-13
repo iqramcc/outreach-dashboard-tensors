@@ -153,6 +153,12 @@ model School {
   // so manual highlighting can never corrupt the funnel numbers.
   cellColors Json @default("{}")
 
+  // Sort key within the sheet. Deliberately a float: dropping a row between
+  // two others takes a value between theirs, which is ONE write whatever the
+  // sheet size. The serial number the team sees is not stored - it is this
+  // ordering rendered, so "push everything below down" costs nothing.
+  position Float @default(0)
+
   importBatchId String?
   createdById   String?
   createdAt     DateTime @default(now())
@@ -174,6 +180,7 @@ model School {
   @@index([assignedToId])
   @@index([nextFollowUpAt])
   @@index([importBatchId])
+  @@index([sheetId, position])
 }
 
 // The colour legend and the status pipeline are deliberately the same table.

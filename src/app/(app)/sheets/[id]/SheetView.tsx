@@ -107,6 +107,12 @@ export default function SheetView({
   // Row selection, for handing a stretch of the call list to one volunteer.
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [assigning, setAssigning] = useState(false)
+
+  // Reordering. The serial number shown is just the row's place in the sheet,
+  // so moving a row never has to renumber the ones below it.
+  const [dragIds, setDragIds] = useState<string[] | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [snDraft, setSnDraft] = useState<{ id: string; value: string } | null>(null)
   const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
 
   const visible = useMemo(() => columns.filter((c) => c.isVisible), [columns])
@@ -219,6 +225,30 @@ export default function SheetView({
     setTimeout(() => setToast(null), 4000)
     setSelected(new Set())
     router.refresh()
+  }
+
+  /**
+   * Move rows to a 1-based position in the sheet. One request, one write per
+   * moved row - the rows below are not touched.
+   */
+  async function moveRows(ids: string[], targetPosition: number) {
+    const res = await fetch('/api/schools/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sheetId: sheet.id, ids, targetPosition }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setToast(data.error ?? 'Could not move those rows')
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
+    router.refresh()
+  }
+
+  /** Rows travel as a block when several are ticked and one of them is dragged. */
+  function dragPayload(rowId: string): string[] {
+    return selected.has(rowId) && selected.size > 1 ? [...selected] : [rowId]
   }
 
   function toggleColumn(key: string) {
@@ -389,6 +419,13 @@ export default function SheetView({
         </div>
       )}
 
+      {selected.size === 0 && (
+        <p className="mb-2 text-xs" style={{ color: 'var(--muted)' }}>
+          Drag a row by its number to reorder it, or type a number to send it there.
+          Tick several rows to move them together.
+        </p>
+      )}
+
       <Legend statuses={statuses} isAdmin={isAdmin} activeId={params.get('status')} onFilter={(id) => setParam('status', id)} />
 
       {/* Filters */}
@@ -535,7 +572,43 @@ export default function SheetView({
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={row.id} className="group" style={{ background: 'transparent' }}>
+              <tr
+                key={row.id}
+                className="group"
+                draggable
+                onDragStart={(e) => {
+                  const ids = dragPayload(row.id)
+                  setDragIds(ids)
+                  e.dataTransfer.effectAllowed = 'move'
+                  // Firefox needs something in the payload to start a drag.
+                  e.dataTransfer.setData('text/plain', ids.join(','))
+                }}
+                onDragOver={(e) => {
+                  if (!dragIds) return
+                  e.preventDefault()
+                  setDropIndex(i)
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (!dragIds) return
+                  // Target counts within the whole sheet, not just this page.
+                  moveRows(dragIds, (page - 1) * pageSize + i + 1)
+                  setDragIds(null)
+                  setDropIndex(null)
+                }}
+                onDragEnd={() => {
+                  setDragIds(null)
+                  setDropIndex(null)
+                }}
+                style={{
+                  background: 'transparent',
+                  boxShadow:
+                    dropIndex === i && dragIds
+                      ? 'inset 0 2px 0 var(--accent)'
+                      : undefined,
+                  opacity: dragIds?.includes(row.id) ? 0.4 : 1,
+                }}
+              >
                 <td
                   className="sticky left-0 z-10 border-b border-r px-2 py-1 text-xs tabular-nums"
                   style={{
@@ -552,7 +625,31 @@ export default function SheetView({
                       onChange={() => toggleRow(row.id)}
                       aria-label={`Select ${row.name}`}
                     />
-                    {(page - 1) * pageSize + i + 1}
+                    {/* Type a number to send the row there; everything below
+                        shifts down on its own, since these are not stored. */}
+                    <input
+                      className="w-10 rounded border-0 bg-transparent px-0.5 py-0 text-right text-xs tabular-nums"
+                      style={{ color: 'var(--muted)' }}
+                      value={
+                        snDraft?.id === row.id
+                          ? snDraft.value
+                          : String((page - 1) * pageSize + i + 1)
+                      }
+                      onChange={(e) => setSnDraft({ id: row.id, value: e.target.value })}
+                      onBlur={() => {
+                        if (snDraft?.id !== row.id) return
+                        const n = Number(snDraft.value)
+                        setSnDraft(null)
+                        if (Number.isInteger(n) && n >= 1 && n !== (page - 1) * pageSize + i + 1) {
+                          moveRows([row.id], n)
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur()
+                        if (e.key === 'Escape') setSnDraft(null)
+                      }}
+                      aria-label={`Position of ${row.name}`}
+                    />
                   </span>
                 </td>
                 {visible.map((c) => (

@@ -45,7 +45,8 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
     prisma.school.count({ where }),
     prisma.school.findMany({
       where,
-      orderBy: { createdAt: 'asc' },
+      // The team's own ordering; createdAt only breaks ties.
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {

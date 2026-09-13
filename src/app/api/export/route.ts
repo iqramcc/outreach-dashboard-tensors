@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     sheetId ? prisma.sheet.findUnique({ where: { id: sheetId } }) : null,
     prisma.school.findMany({
       where,
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       include: {
         status: { select: { name: true, hex: true } },
         assignedTo: { select: { name: true } },

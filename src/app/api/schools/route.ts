@@ -59,6 +59,12 @@ export async function POST(request: Request) {
     }
   }
 
+  const last = await prisma.school.findFirst({
+    where: { sheetId: b.sheetId },
+    orderBy: { position: 'desc' },
+    select: { position: true },
+  })
+
   const fallback = await prisma.outreachStatus.findFirst({ where: { isDefault: true } })
   const statusId = b.statusId || fallback?.id || null
 
@@ -78,6 +84,7 @@ export async function POST(request: Request) {
       connection: b.connection || null,
       remarks: b.remarks || null,
       statusId,
+      position: (last?.position ?? 0) + 1000,
       extra: b.extra ?? {},
       createdById: user.id,
     },
