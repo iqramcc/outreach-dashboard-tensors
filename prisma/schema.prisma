@@ -81,6 +81,7 @@ model User {
   columnPrefs      ColumnPref[]
   userStatusColors UserStatusColor[]
   personalTags     PersonalTag[]
+  campaignEntries  CampaignEntry[]
 }
 
 model Sheet {
@@ -166,13 +167,14 @@ model School {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  sheet        Sheet               @relation(fields: [sheetId], references: [id], onDelete: Cascade)
-  status       OutreachStatus?     @relation(fields: [statusId], references: [id], onDelete: SetNull)
-  assignedTo   User?               @relation("SchoolAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy    User?               @relation("SchoolCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  importBatch  ImportBatch?        @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  logs         OutreachLog[]
-  personalTags SchoolPersonalTag[]
+  sheet           Sheet               @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  status          OutreachStatus?     @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  assignedTo      User?               @relation("SchoolAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy       User?               @relation("SchoolCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  importBatch     ImportBatch?        @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  logs            OutreachLog[]
+  personalTags    SchoolPersonalTag[]
+  campaignEntries CampaignEntry[]
 
   @@index([nameKey])
   @@index([contactKey])
@@ -336,4 +338,62 @@ model SchoolPersonalTag {
 
   @@id([schoolId, tagId])
   @@index([tagId])
+}
+
+enum CampaignEntryStatus {
+  NEW
+  SENT
+}
+
+/**
+ * A list the team builds up for one kind of outreach - bulk mail, a special
+ * mail, a WhatsApp blast. Admins define them, including which fields a row
+ * must carry before it is worth sending, so the export cannot quietly contain
+ * schools with no email address.
+ */
+model CampaignList {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  description    String?
+  /**
+   * Column keys a row must have a value for before it counts as ready.
+   */
+  requiredFields Json     @default("[]")
+  /**
+   * Included in the export when present, but never block a row.
+   */
+  optionalFields Json     @default("[]")
+  order          Int      @default(0)
+  isArchived     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  entries CampaignEntry[]
+
+  @@index([isArchived, order])
+}
+
+model CampaignEntry {
+  id        String              @id @default(uuid())
+  listId    String
+  schoolId  String
+  status    CampaignEntryStatus @default(NEW)
+  sentAt    DateTime?
+  addedById String?
+  /**
+   * Values typed in by hand for fields the school row does not carry. The
+   * export prefers these and falls back to the school, so a list is never a
+   * stale copy of data that has since been corrected on the school itself.
+   */
+  data      Json                @default("{}")
+  createdAt DateTime            @default(now())
+
+  list    CampaignList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  school  School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  addedBy User?        @relation(fields: [addedById], references: [id], onDelete: SetNull)
+
+  // A school belongs to a list once; adding it again is a no-op, not a second row.
+  @@unique([listId, schoolId])
+  @@index([listId, status])
+  @@index([schoolId])
 }

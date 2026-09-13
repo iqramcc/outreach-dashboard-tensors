@@ -50,6 +50,7 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
     users,
     districts,
     allSheets,
+    campaigns,
     myColours,
     myTags,
   ] = await Promise.all([
@@ -91,6 +92,11 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
       select: { id: true, name: true },
     }),
     // This viewer's own colours - nobody else's view is affected by them.
+    prisma.campaignList.findMany({
+      where: { isArchived: false },
+      orderBy: { order: 'asc' },
+      select: { id: true, name: true, requiredFields: true },
+    }),
     prisma.userStatusColor.findMany({
       where: { userId: user.id },
       select: { statusId: true, hex: true },
@@ -133,6 +139,11 @@ export default async function SheetPage(props: PageProps<'/sheets/[id]'>) {
       users={users}
       districts={districts.map((d) => d.district).filter(Boolean) as string[]}
       allSheets={allSheets}
+      campaigns={campaigns.map((c) => ({
+        id: c.id,
+        name: c.name,
+        requiredFields: (c.requiredFields as string[]) ?? [],
+      }))}
       myColours={Object.fromEntries(myColours.map((c) => [c.statusId, c.hex]))}
       myTags={myTags.map((t) => ({
         id: t.id,

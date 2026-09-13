@@ -141,7 +141,7 @@ sheet**. Labels only; the stored values stay put.
 One button in the first view; clicking it expands the detail, with a final
 "Filter" button to apply.
 
-## 3. Mail / WhatsApp campaign lists · ☐
+## 3. Mail / WhatsApp campaign lists · ☑ done
 Per row: add to "bulk mail list", "special mail list", "WhatsApp msg list".
 Admin can tell sent from new, and export each separately to Excel. Admin sets
 the required and optional fields per list, and can add new list types from

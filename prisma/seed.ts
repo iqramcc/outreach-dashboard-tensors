@@ -65,6 +65,22 @@ async function main() {
   }
   console.log(`core columns: ${CORE_COLUMNS.length}`)
 
+  // The three lists the team asked for. Admins can rename these, change what
+  // each one requires, or add their own.
+  const CAMPAIGNS = [
+    { name: 'Bulk mail list', requiredFields: ['name', 'email'], optionalFields: ['district', 'pocName'], order: 0 },
+    { name: 'Special mail list', requiredFields: ['name', 'email'], optionalFields: ['district', 'pocName', 'connection'], order: 1 },
+    { name: 'WhatsApp msg list', requiredFields: ['name', 'contact'], optionalFields: ['district', 'pocName'], order: 2 },
+  ]
+  for (const c of CAMPAIGNS) {
+    await prisma.campaignList.upsert({
+      where: { name: c.name },
+      update: {},
+      create: c,
+    })
+  }
+  console.log(`campaign lists: ${CAMPAIGNS.length}`)
+
   // One starter sheet so the app is never an empty void on first login.
   const sheetCount = await prisma.sheet.count()
   if (sheetCount === 0) {

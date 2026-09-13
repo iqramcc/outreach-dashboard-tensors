@@ -13,6 +13,7 @@ import EditableCell from '@/components/EditableCell'
 export type Status = { id: string; name: string; hex: string; order: number; isContacted: boolean; isPositive: boolean; isDefault: boolean }
 export type UserLite = { id: string; name: string }
 export type PersonalTag = { id: string; name: string; hex: string; schoolIds: string[] }
+export type CampaignList = { id: string; name: string; requiredFields: string[] }
 
 export type Row = {
   id: string
@@ -85,6 +86,7 @@ export default function SheetView({
   users,
   districts,
   allSheets,
+  campaigns,
   myColours,
   myTags,
   total,
@@ -106,6 +108,8 @@ export default function SheetView({
   districts: string[]
   /** Every sheet, so an admin can copy rows into one of them. */
   allSheets: { id: string; name: string }[]
+  /** Mail and message lists the ticked rows can be added to. */
+  campaigns: CampaignList[]
   /** This viewer's own colour for a status, overriding the shared one. */
   myColours: Record<string, string>
   myTags: PersonalTag[]
@@ -386,6 +390,45 @@ export default function SheetView({
     router.refresh()
   }
 
+  /**
+   * Add the ticked schools to a mail or message list.
+   *
+   * The values come off the school itself, so nothing is retyped. A school
+   * that is genuinely missing something the list needs is still added, but
+   * reported - the team usually adds the school first and chases the email
+   * afterwards, and a silent omission would be worse than a warning.
+   */
+  async function addToCampaign(listId: string, on: boolean) {
+    const list = campaigns.find((c) => c.id === listId)
+    setAssigning(true)
+    const res = await fetch(`/api/campaigns/${listId}/entries`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schoolIds: [...selected], on }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setAssigning(false)
+    if (!res.ok) {
+      setToast(data.error ?? 'Could not update that list')
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
+
+    if (!on) {
+      setToast(`${data.removed} removed from ${list?.name ?? 'the list'}`)
+    } else {
+      const bits = [`${data.added} added to ${list?.name ?? 'the list'}`]
+      if (data.alreadyThere) bits.push(`${data.alreadyThere} already there`)
+      if (data.notReady?.length) {
+        bits.push(`${data.notReady.length} missing something the list needs`)
+      }
+      setToast(bits.join(' · '))
+    }
+    setTimeout(() => setToast(null), 6000)
+    setSelected(new Set())
+    router.refresh()
+  }
+
   /** Put one of the viewer's own marks on, or take it off, the ticked rows. */
   async function applyTag(tagId: string, on: boolean) {
     const res = await fetch(`/api/personal/tags/${tagId}`, {
@@ -592,6 +635,31 @@ export default function SheetView({
               ))}
               {Object.entries(LIST_LABELS).map(([v, l]) => (
                 <option key={`c-${v}`} value={`${v}:copy`}>Copy into {l} (keep here too)</option>
+              ))}
+            </select>
+          )}
+
+          {campaigns.length > 0 && (
+            <select
+              className="input w-auto"
+              defaultValue=""
+              disabled={assigning}
+              onChange={(e) => {
+                if (!e.target.value) return
+                const [listId, mode] = e.target.value.split(':')
+                addToCampaign(listId, mode === 'add')
+                e.target.value = ''
+              }}
+              aria-label="Add the selected rows to a mail or message list"
+            >
+              <option value="">Add to list...</option>
+              {campaigns.map((c) => (
+                <option key={`a-${c.id}`} value={`${c.id}:add`}>Add to {c.name}</option>
+              ))}
+              {campaigns.map((c) => (
+                <option key={`r-${c.id}`} value={`${c.id}:remove`}>
+                  Remove from {c.name}
+                </option>
               ))}
             </select>
           )}
