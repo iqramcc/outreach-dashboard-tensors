@@ -29,12 +29,13 @@ export default async function ColumnsPage() {
 
       <p className="mb-3 text-xs" style={{ color: 'var(--muted)' }}>
         Add a column of your own, rename one, reorder it, or hide it from the grid.
-        Built-in columns can be renamed and hidden but not deleted or retyped, because
-        the dashboard&apos;s district and pipeline figures are calculated from them.
+        Columns you add can also be deleted, which tells you first how many schools
+        would lose data. Built-in columns can be renamed and hidden but never deleted or
+        retyped, because the dashboard&apos;s district and pipeline figures are calculated
+        from them.
       </p>
 
       <ColumnsManager
-        isAdmin={user.role === 'ADMIN'}
         columns={columns.map((c) => ({
           id: c.id,
           key: c.key,

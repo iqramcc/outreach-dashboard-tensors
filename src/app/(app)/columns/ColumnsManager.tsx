@@ -37,13 +37,7 @@ export const COLUMN_TYPES: { value: string; label: string; hint: string }[] = [
 
 const NEEDS_OPTIONS = new Set(['SELECT', 'SELECT_FREE'])
 
-export default function ColumnsManager({
-  columns,
-  isAdmin,
-}: {
-  columns: Col[]
-  isAdmin: boolean
-}) {
+export default function ColumnsManager({ columns }: { columns: Col[] }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -102,16 +96,34 @@ export default function ColumnsManager({
     router.refresh()
   }
 
+  /**
+   * Two steps on purpose. The first call asks how many schools actually hold a
+   * value, so the warning names a real number instead of being vague; the
+   * delete is only accepted when that same number is sent back, which means it
+   * can never happen on a mis-click or against a stale page.
+   */
   async function remove(col: Col) {
-    if (
-      !confirm(
-        `Delete the "${col.label}" column? Any values stored in it are lost for every school.`
-      )
-    ) {
+    setBusy(true)
+    setError(null)
+    const probe = await fetch(`/api/columns/${col.id}`)
+    const info = await probe.json().catch(() => ({}))
+    setBusy(false)
+    if (!probe.ok) {
+      setError(info.error ?? 'Could not read that column')
       return
     }
+
+    const filled: number = info.filledRows ?? 0
+    const warning =
+      filled > 0
+        ? `Delete "${col.label}"?\n\n${filled.toLocaleString('en-IN')} school(s) have a value in it. That data is deleted with the column and cannot be recovered.`
+        : `Delete "${col.label}"?\n\nNo school has a value in it yet.`
+    if (!confirm(warning)) return
+
     setBusy(true)
-    const res = await fetch(`/api/columns/${col.id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/columns/${col.id}?expectedRows=${filled}`, {
+      method: 'DELETE',
+    })
     setBusy(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
@@ -272,7 +284,7 @@ export default function ColumnsManager({
                   >
                     {c.isVisible ? <Eye size={14} /> : <EyeOff size={14} style={{ color: 'var(--muted)' }} />}
                   </button>
-                  {!c.isCore && isAdmin && (
+                  {!c.isCore && (
                     <button className="p-1" onClick={() => remove(c)} disabled={busy} title="Delete" type="button">
                       <Trash2 size={14} style={{ color: 'var(--danger)' }} />
                     </button>
