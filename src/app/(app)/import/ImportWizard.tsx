@@ -2,7 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, CheckCircle2, FileSpreadsheet, Undo2, Upload } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  FileSpreadsheet,
+  Undo2,
+  Upload,
+} from 'lucide-react'
 import { CORE_COLUMNS, DEDUPE_COLUMNS, type DedupeKey } from '@/lib/columns'
 import { districtsFor, REGION_LABELS } from '@/lib/regions'
 
@@ -50,6 +57,63 @@ type PlanRow = {
   mapping: Record<string, string>
 }
 
+type DuplicateAction =
+  | 'SKIP'
+  | 'MERGE_EXISTING_WINS'
+  | 'MERGE_INCOMING_WINS'
+  | 'IMPORT_ANYWAY'
+
+/** What each choice does, in the team's words rather than the schema's. */
+const ACTIONS: { value: DuplicateAction; label: string; hint: string }[] = [
+  {
+    value: 'SKIP',
+    label: 'Skip the new row',
+    hint: 'Keep what is already saved and ignore the row in the file.',
+  },
+  {
+    value: 'MERGE_EXISTING_WINS',
+    label: 'Merge — existing wins',
+    hint: 'Fill in only the blanks on the saved row. Nothing already there is changed.',
+  },
+  {
+    value: 'MERGE_INCOMING_WINS',
+    label: 'Merge — file wins',
+    hint: 'The uploaded file overwrites the saved row wherever it has a value.',
+  },
+  {
+    value: 'IMPORT_ANYWAY',
+    label: 'Keep both',
+    hint: 'Add it as a separate school. Use when they really are two schools.',
+  },
+]
+
+const COMPARE_FIELDS: [string, string][] = [
+  ['name', 'Name'],
+  ['district', 'District'],
+  ['contact', 'Contact'],
+  ['email', 'Mail'],
+  ['financeType', 'Finance'],
+  ['pocName', 'POC'],
+  ['connection', 'Connection'],
+]
+
+type Conflict = {
+  key: string
+  tabName: string
+  rowIndex: number
+  withinFile: boolean
+  incoming: Record<string, string>
+  existing: (Record<string, string> & { id: string; sheetName: string }) | null
+}
+
+type DupReport = {
+  totalRows: number
+  duplicateCount: number
+  withinFileCount: number
+  conflicts: Conflict[]
+  truncated: boolean
+}
+
 type Batch = {
   id: string
   filename: string
@@ -77,7 +141,13 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
   const [dedupeOn, setDedupeOn] = useState(true)
   const [scope, setScope] = useState<'SHEET' | 'DATABASE'>('DATABASE')
   const [keys, setKeys] = useState<DedupeKey[]>(['name', 'district'])
-  const [action, setAction] = useState<'SKIP' | 'UPDATE' | 'IMPORT_ANYWAY'>('SKIP')
+  const [action, setAction] = useState<DuplicateAction>('SKIP')
+
+  // The duplicate review: a dry run, then per-row decisions over the top.
+  const [dupReport, setDupReport] = useState<DupReport | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
+  const [overrides, setOverrides] = useState<Record<string, DuplicateAction>>({})
 
   async function analyze(f: File) {
     setBusy(true)
@@ -112,11 +182,18 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
     }
   }
 
+  /** Any change to the matching rule makes an earlier check stale. */
+  function invalidateCheck() {
+    setDupReport(null)
+    setOverrides({})
+  }
+
   function updatePlan(tabName: string, patch: Partial<PlanRow>) {
     setPlans((ps) =>
       ps.map((p) => {
         if (p.tabName !== tabName) return p
         const next = { ...p, ...patch }
+        if ('district' in patch || 'include' in patch) invalidateCheck()
         // The sheet takes its name from the district, which is why the district
         // is only asked for once. Falls back to the tab's own name.
         if ('district' in patch) next.sheetName = next.district || p.tabName
@@ -125,25 +202,50 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
     )
   }
 
+  /** Exactly what the import will be sent, so the check cannot drift from it. */
+  function currentPlan() {
+    return {
+      mode,
+      plans: plans.map((p) => ({
+        ...p,
+        sheetName: mode === 'MERGE_ALL' ? mergeSheetName : p.sheetName,
+      })),
+      dedupe: { enabled: dedupeOn, scope, keys, action, overrides },
+    }
+  }
+
+  /** Dry run - writes nothing, just reports what clashes. */
+  async function checkDuplicates() {
+    if (!file) return
+    setChecking(true)
+    setError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('plan', JSON.stringify(currentPlan()))
+      const res = await fetch('/api/import/duplicates', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? 'Could not check for duplicates')
+        return
+      }
+      setDupReport(data)
+      setOverrides({})
+    } catch {
+      setError('Could not check for duplicates')
+    } finally {
+      setChecking(false)
+    }
+  }
+
   async function runImport() {
     if (!file || !analysis) return
     setBusy(true)
     setError(null)
     try {
-      const finalPlans = plans.map((p) => ({
-        ...p,
-        sheetName: mode === 'MERGE_ALL' ? mergeSheetName : p.sheetName,
-      }))
       const fd = new FormData()
       fd.append('file', file)
-      fd.append(
-        'plan',
-        JSON.stringify({
-          mode,
-          plans: finalPlans,
-          dedupe: { enabled: dedupeOn, scope, keys, action },
-        })
-      )
+      fd.append('plan', JSON.stringify(currentPlan()))
       const res = await fetch('/api/import/run', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) {
@@ -153,6 +255,8 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
       setResult(data)
       setAnalysis(null)
       setFile(null)
+      setDupReport(null)
+      setOverrides({})
       router.refresh()
     } catch {
       setError('Import failed')
@@ -308,9 +412,12 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
                         <button
                           key={c.key}
                           type="button"
-                          onClick={() =>
-                            setKeys((ks) => (on ? ks.filter((k) => k !== c.key) : [...ks, c.key]))
-                          }
+                          onClick={() => {
+                            setKeys((ks) =>
+                              on ? ks.filter((k) => k !== c.key) : [...ks, c.key]
+                            )
+                            invalidateCheck()
+                          }}
                           className="rounded-md border px-2.5 py-1 text-xs"
                           style={on ? { background: 'var(--accent-soft)', color: 'var(--accent)', borderColor: 'transparent' } : { color: 'var(--muted)' }}
                         >
@@ -332,19 +439,221 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="label" htmlFor="dd-scope">Where to look</label>
-                    <select id="dd-scope" className="input" value={scope} onChange={(e) => setScope(e.target.value as 'SHEET' | 'DATABASE')}>
+                    <select
+                      id="dd-scope"
+                      className="input"
+                      value={scope}
+                      onChange={(e) => {
+                        setScope(e.target.value as 'SHEET' | 'DATABASE')
+                        invalidateCheck()
+                      }}
+                    >
                       <option value="DATABASE">Across the whole database</option>
                       <option value="SHEET">Only within the target sheet</option>
                     </select>
                   </div>
                   <div>
-                    <label className="label" htmlFor="dd-action">When a duplicate is found</label>
-                    <select id="dd-action" className="input" value={action} onChange={(e) => setAction(e.target.value as typeof action)}>
-                      <option value="SKIP">Skip the incoming row</option>
-                      <option value="UPDATE">Fill in blanks on the existing row</option>
-                      <option value="IMPORT_ANYWAY">Import it anyway</option>
+                    <label className="label" htmlFor="dd-action">
+                      When a duplicate is found
+                    </label>
+                    <select
+                      id="dd-action"
+                      className="input"
+                      value={action}
+                      onChange={(e) => setAction(e.target.value as DuplicateAction)}
+                    >
+                      {ACTIONS.map((a) => (
+                        <option key={a.value} value={a.value}>
+                          {a.label}
+                        </option>
+                      ))}
                     </select>
+                    <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+                      {ACTIONS.find((a) => a.value === action)?.hint}
+                    </p>
                   </div>
+                </div>
+
+                {/* Dry run first: see how many clash before committing. */}
+                <div className="border-t pt-3">
+                  {!dupReport ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={checkDuplicates}
+                        disabled={checking || keys.length === 0 || selected.length === 0}
+                      >
+                        <Copy size={14} />
+                        {checking ? 'Checking...' : 'Check for duplicates'}
+                      </button>
+                      <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                        Optional. Nothing is saved by checking.
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {dupReport.duplicateCount === 0 ? (
+                          <p className="text-sm" style={{ color: 'var(--accent)' }}>
+                            No duplicates found in {dupReport.totalRows.toLocaleString('en-IN')} rows.
+                          </p>
+                        ) : (
+                          <p className="text-sm">
+                            <strong>
+                              {dupReport.duplicateCount.toLocaleString('en-IN')} duplicates
+                            </strong>{' '}
+                            in {dupReport.totalRows.toLocaleString('en-IN')} rows
+                            {dupReport.withinFileCount > 0 &&
+                              ` (${dupReport.withinFileCount.toLocaleString(
+                                'en-IN'
+                              )} are repeats inside the file itself)`}
+                            .
+                          </p>
+                        )}
+                        {dupReport.duplicateCount > 0 && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost py-1 text-xs"
+                            onClick={() => setReviewing((v) => !v)}
+                          >
+                            {reviewing ? 'Hide them' : 'Review them one by one'}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-ghost py-1 text-xs"
+                          onClick={checkDuplicates}
+                          disabled={checking}
+                        >
+                          Re-check
+                        </button>
+                      </div>
+
+                      {Object.keys(overrides).length > 0 && (
+                        <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+                          {Object.keys(overrides).length} row(s) decided individually; the rest
+                          use &ldquo;{ACTIONS.find((a) => a.value === action)?.label}&rdquo;.
+                          <button
+                            type="button"
+                            className="ml-2 underline"
+                            onClick={() => setOverrides({})}
+                          >
+                            reset
+                          </button>
+                        </p>
+                      )}
+
+                      {reviewing && dupReport.duplicateCount > 0 && (
+                        <div className="thin-scroll mt-3 max-h-96 overflow-auto rounded-md border">
+                          <table className="w-full text-xs">
+                            <thead
+                              className="sticky top-0"
+                              style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}
+                            >
+                              <tr>
+                                <th className="px-2 py-1.5 text-left font-medium">Row</th>
+                                <th className="px-2 py-1.5 text-left font-medium">
+                                  In the file
+                                </th>
+                                <th className="px-2 py-1.5 text-left font-medium">
+                                  Already saved
+                                </th>
+                                <th className="px-2 py-1.5 text-left font-medium">Do what</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {dupReport.conflicts.map((c) => (
+                                <tr
+                                  key={c.key}
+                                  className="border-t align-top"
+                                  style={{ borderColor: 'var(--border)' }}
+                                >
+                                  <td
+                                    className="px-2 py-1.5 whitespace-nowrap"
+                                    style={{ color: 'var(--muted)' }}
+                                  >
+                                    {c.tabName} #{c.rowIndex}
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {COMPARE_FIELDS.filter(([f]) => c.incoming[f]).map(
+                                      ([f, label]) => (
+                                        <div key={f}>
+                                          <span style={{ color: 'var(--muted)' }}>{label}: </span>
+                                          {c.incoming[f]}
+                                        </div>
+                                      )
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {c.existing ? (
+                                      <>
+                                        {COMPARE_FIELDS.filter(
+                                          ([f]) => c.existing && c.existing[f]
+                                        ).map(([f, label]) => {
+                                          const differs =
+                                            (c.existing?.[f] ?? '') !== (c.incoming[f] ?? '')
+                                          return (
+                                            <div key={f}>
+                                              <span style={{ color: 'var(--muted)' }}>
+                                                {label}:{' '}
+                                              </span>
+                                              <span
+                                                style={
+                                                  differs ? { color: 'var(--danger)' } : undefined
+                                                }
+                                              >
+                                                {c.existing?.[f]}
+                                              </span>
+                                            </div>
+                                          )
+                                        })}
+                                        <div style={{ color: 'var(--muted)' }}>
+                                          in {c.existing.sheetName}
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <span style={{ color: 'var(--muted)' }}>
+                                        Repeat of an earlier row in this file
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    <select
+                                      className="input py-1 text-xs"
+                                      value={overrides[c.key] ?? action}
+                                      onChange={(e) =>
+                                        setOverrides((o) => ({
+                                          ...o,
+                                          [c.key]: e.target.value as DuplicateAction,
+                                        }))
+                                      }
+                                      aria-label={`What to do with ${c.tabName} row ${c.rowIndex}`}
+                                    >
+                                      {ACTIONS.map((a) => (
+                                        <option key={a.value} value={a.value}>
+                                          {a.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {dupReport.truncated && (
+                            <p
+                              className="px-2 py-2 text-xs"
+                              style={{ color: 'var(--muted)' }}
+                            >
+                              Showing the first {dupReport.conflicts.length}. The rest use
+                              &ldquo;{ACTIONS.find((a) => a.value === action)?.label}&rdquo;.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}

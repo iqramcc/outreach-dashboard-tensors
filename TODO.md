@@ -10,9 +10,10 @@ Tick items off as they land.
 - 1.2 District should be **type-or-pick** (free text *and* a dropdown).
 - Mass call / connected list needs a visible label, not a bare dropdown.
 
-## 2. Duplicates — let the user decide · ☐
-Before importing, ask whether they want to review the duplicate rows and choose
-which to drop, delete them all, or keep everything as-is.
+## 2. Duplicates — let the user decide · ☑ done
+"Check for duplicates" is a dry run reporting a count, expandable to a
+row-by-row review. Four actions, overridable per row: skip / merge with the
+saved row winning / merge with the file winning / keep both.
 
 ## 3. Assigning work · ☐
 Assign part of a list, or a whole list, to a specific member.

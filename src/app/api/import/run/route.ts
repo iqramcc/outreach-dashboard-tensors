@@ -1,32 +1,10 @@
-import { z } from 'zod'
 import { apiAdmin } from '@/lib/auth'
 import { parseWorkbook } from '@/lib/excel/parse'
-import { runImport, type ImportTabPlan } from '@/lib/excel/import'
+import { runImport } from '@/lib/excel/import'
+import { buildPlans, ImportPlanSchema } from '@/lib/excel/plan'
 import { prisma } from '@/lib/db'
 import { toColumnKey, isCoreKey } from '@/lib/columns'
 import { NEW_COLUMN, IGNORE } from '@/lib/excel/map'
-
-const TabPlan = z.object({
-  tabName: z.string(),
-  include: z.boolean().default(true),
-  sheetName: z.string().min(1),
-  sheetId: z.string().nullable().default(null),
-  regionCategory: z.enum(['KERALA', 'TAMIL_NADU', 'MIDDLE_EAST', 'OTHER_STATE']),
-  district: z.string().nullable().default(null),
-  listType: z.enum(['MASS_CALL', 'CONNECTED', 'OFFLINE_OUTREACH']),
-  mapping: z.record(z.string(), z.string()),
-})
-
-const Body = z.object({
-  mode: z.enum(['TAB_PER_SHEET', 'MERGE_ALL']),
-  plans: z.array(TabPlan),
-  dedupe: z.object({
-    enabled: z.boolean(),
-    scope: z.enum(['SHEET', 'DATABASE']),
-    keys: z.array(z.enum(['name', 'district', 'contact', 'email', 'state'])),
-    action: z.enum(['SKIP', 'UPDATE', 'IMPORT_ANYWAY']),
-  }),
-})
 
 /**
  * Step 2: actually import. The file is uploaded again alongside the plan
@@ -49,75 +27,45 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Missing import plan' }, { status: 400 })
   }
 
-  const parsed = Body.safeParse(JSON.parse(rawPlan))
+  const parsed = ImportPlanSchema.safeParse(JSON.parse(rawPlan))
   if (!parsed.success) {
     return Response.json({ error: 'Invalid import plan' }, { status: 400 })
   }
   const { mode, plans: planInput, dedupe } = parsed.data
 
   const workbook = await parseWorkbook(await file.arrayBuffer(), file.name)
-  const tabsByName = new Map(workbook.tabs.map((t) => [t.name, t]))
 
   // Any header the user marked as a new custom column has to exist as a
   // ColumnDef, or the value would be saved into `extra` with nothing in the UI
   // to render it.
-  const customKeys = new Set<string>()
+  const wanted = new Map<string, string>()
   for (const plan of planInput) {
     if (!plan.include) continue
     for (const [header, target] of Object.entries(plan.mapping)) {
-      if (target === NEW_COLUMN) customKeys.add(toColumnKey(header))
-      else if (target !== IGNORE && !isCoreKey(target)) customKeys.add(target)
+      if (target === NEW_COLUMN) wanted.set(toColumnKey(header), header)
+      else if (target !== IGNORE && !isCoreKey(target)) wanted.set(target, header)
     }
   }
 
-  if (customKeys.size > 0) {
+  if (wanted.size > 0) {
     const existing = await prisma.columnDef.findMany({
-      where: { sheetId: null, key: { in: [...customKeys] } },
+      where: { sheetId: null, key: { in: [...wanted.keys()] } },
       select: { key: true },
     })
     const have = new Set(existing.map((c) => c.key))
     const last = await prisma.columnDef.findFirst({ orderBy: { order: 'desc' } })
     let order = (last?.order ?? 0) + 1
 
-    for (const plan of planInput) {
-      if (!plan.include) continue
-      for (const [header, target] of Object.entries(plan.mapping)) {
-        if (target !== NEW_COLUMN) continue
-        const key = toColumnKey(header)
-        if (have.has(key)) continue
-        have.add(key)
-        await prisma.columnDef.create({
-          data: { key, label: header, type: 'TEXT', isCore: false, order: order++ },
-        })
-      }
+    for (const [key, label] of wanted) {
+      if (have.has(key)) continue
+      have.add(key)
+      await prisma.columnDef.create({
+        data: { key, label, type: 'TEXT', isCore: false, order: order++ },
+      })
     }
   }
 
-  const plans: ImportTabPlan[] = []
-  for (const p of planInput) {
-    if (!p.include) continue
-    const tab = tabsByName.get(p.tabName)
-    if (!tab) continue
-
-    // Rewrite NEW_COLUMN targets to their stable custom-column key.
-    const mapping: Record<string, string> = {}
-    for (const [header, target] of Object.entries(p.mapping)) {
-      mapping[header] = target === NEW_COLUMN ? toColumnKey(header) : target
-    }
-
-    plans.push({
-      tab,
-      mapping,
-      sheetId: p.sheetId,
-      defaults: {
-        sheetName: p.sheetName,
-        regionCategory: p.regionCategory,
-        district: p.district,
-        listType: p.listType,
-      },
-    })
-  }
-
+  const plans = buildPlans(workbook, planInput)
   if (plans.length === 0) {
     return Response.json({ error: 'No tabs selected' }, { status: 400 })
   }
