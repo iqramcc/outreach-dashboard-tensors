@@ -46,6 +46,24 @@ const ENTITY_LABELS: Record<string, string> = {
   TUITION_CENTRE: 'Tuition centre',
   OTHER: 'Other',
 }
+/**
+ * Pick-or-type vocabularies. The team kept spelling these differently across
+ * district sheets; offering the existing wording first keeps them groupable,
+ * while still allowing a value nobody thought of.
+ */
+const SUGGESTIONS: Record<string, readonly string[]> = {
+  financeType: [
+    'Government',
+    'Govt aided',
+    'High-class private',
+    'Private',
+    'Unaided',
+    'Other',
+  ],
+  schoolType: ['CBSE', 'ICSE', 'State', 'Kendriya Vidyalaya', 'International', 'Other'],
+  pocRole: ['Principal', 'Vice Principal', 'HM', 'Teacher', 'Office', 'Other'],
+}
+
 const LIST_LABELS: Record<string, string> = {
   MASS_CALL: 'Mass call list',
   CONNECTED: 'Connected school',
@@ -164,6 +182,29 @@ export default function SheetView({
     }
   }
 
+  /**
+   * What the editor binds to. Dropdowns must receive the value that is stored
+   * ("TUITION_CENTRE"), not the label shown in the cell ("Tuition centre") -
+   * otherwise the <select> matches no option, shows the first one, and the
+   * Type / List / Region columns look like they refuse to change.
+   */
+  function rawCellValue(row: Row, col: ResolvedColumn): string {
+    switch (col.key) {
+      case 'status':
+        return row.status?.id ?? ''
+      case 'assignedTo':
+        return row.assignedTo?.id ?? ''
+      case 'entityType':
+        return row.entityType
+      case 'listType':
+        return row.listType
+      case 'regionCategory':
+        return row.regionCategory
+      default:
+        return cellValue(row, col)
+    }
+  }
+
   function optionsFor(col: ResolvedColumn) {
     switch (col.key) {
       case 'status':
@@ -211,19 +252,45 @@ export default function SheetView({
       {/* Filters */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <form
-          className="relative"
+          className="flex items-center gap-1"
           onSubmit={(e) => {
             e.preventDefault()
             setParam('q', search)
           }}
+          role="search"
         >
-          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
-          <input
-            className="input w-56 pl-8"
-            placeholder="Search name, phone, mail..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="relative">
+            <Search
+              size={14}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--muted)' }}
+              aria-hidden
+            />
+            <input
+              className="input w-56 pl-8"
+              placeholder={`Search in ${sheet.name}...`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label={`Search within ${sheet.name}`}
+              type="search"
+            />
+            {search && (
+              <button
+                type="button"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5"
+                onClick={() => {
+                  setSearch('')
+                  setParam('q', '')
+                }}
+                aria-label="Clear search"
+              >
+                <X size={13} style={{ color: 'var(--muted)' }} />
+              </button>
+            )}
+          </div>
+          <button type="submit" className="btn btn-ghost px-2" aria-label="Search">
+            <Search size={15} />
+          </button>
         </form>
 
         <select className="input w-auto" value={params.get('district') ?? ''} onChange={(e) => setParam('district', e.target.value)}>
@@ -333,13 +400,8 @@ export default function SheetView({
                     rowId={row.id}
                     column={c}
                     display={cellValue(row, c)}
-                    rawValue={
-                      c.key === 'status'
-                        ? (row.status?.id ?? '')
-                        : c.key === 'assignedTo'
-                          ? (row.assignedTo?.id ?? '')
-                          : cellValue(row, c)
-                    }
+                    rawValue={rawCellValue(row, c)}
+                    suggestions={SUGGESTIONS[c.key] ?? null}
                     color={c.key === 'status' ? (row.status?.hex ?? null) : (row.cellColors?.[c.key] ?? null)}
                     options={optionsFor(c)}
                     onSave={(v) => saveCell(row.id, c.key, v)}

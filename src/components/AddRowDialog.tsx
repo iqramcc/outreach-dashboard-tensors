@@ -178,7 +178,7 @@ export default function AddRowDialog({
             </div>
             <div>
               <label className="label" htmlFor="ar-conn">Connection</label>
-              <input id="ar-conn" className="input" value={form.connection} onChange={(e) => set('connection', e.target.value)} placeholder="e.g. Ikram 11th n 12th" />
+              <input id="ar-conn" className="input" value={form.connection} onChange={(e) => set('connection', e.target.value)} />
             </div>
           </div>
 

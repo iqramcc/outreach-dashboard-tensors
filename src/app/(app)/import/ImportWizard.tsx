@@ -4,7 +4,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Undo2, Upload } from 'lucide-react'
 import { CORE_COLUMNS, DEDUPE_COLUMNS, type DedupeKey } from '@/lib/columns'
-import { REGION_LABELS } from '@/lib/regions'
+import { districtsFor, REGION_LABELS } from '@/lib/regions'
+
+/** One template drives both the label row and every tab row, so they align. */
+const TAB_GRID =
+  'minmax(10rem,1.3fr) minmax(9rem,1.1fr) minmax(8rem,0.9fr) minmax(9rem,1.1fr) auto'
+
+const LIST_TYPES: [string, string][] = [
+  ['MASS_CALL', 'Mass call list'],
+  ['CONNECTED', 'Connected school'],
+  ['OFFLINE_OUTREACH', 'Offline outreach'],
+]
 
 const IGNORE = '__ignore__'
 const NEW_COLUMN = '__new__'
@@ -103,7 +113,16 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
   }
 
   function updatePlan(tabName: string, patch: Partial<PlanRow>) {
-    setPlans((ps) => ps.map((p) => (p.tabName === tabName ? { ...p, ...patch } : p)))
+    setPlans((ps) =>
+      ps.map((p) => {
+        if (p.tabName !== tabName) return p
+        const next = { ...p, ...patch }
+        // The sheet takes its name from the district, which is why the district
+        // is only asked for once. Falls back to the tab's own name.
+        if ('district' in patch) next.sheetName = next.district || p.tabName
+        return next
+      })
+    )
   }
 
   async function runImport() {
@@ -337,7 +356,24 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
               <p className="text-sm font-medium">Tabs to import</p>
               <p className="text-xs" style={{ color: 'var(--muted)' }}>
                 Each tab has its own columns, so check the mapping where it matters.
+                In this mode each tab becomes its own sheet, named after its district.
               </p>
+            </div>
+
+            <div
+              className="hidden border-b px-4 py-1.5 text-xs sm:grid sm:gap-2"
+              style={{
+                gridTemplateColumns: TAB_GRID,
+                color: 'var(--muted)',
+                borderColor: 'var(--border)',
+                background: 'var(--surface-2)',
+              }}
+            >
+              <span>Tab</span>
+              <span>District</span>
+              <span>Region</span>
+              <span>List type</span>
+              <span>Columns</span>
             </div>
 
             {analysis.tabs.map((tab) => {
@@ -348,68 +384,105 @@ export default function ImportWizard({ recent }: { recent: Batch[] }) {
 
               return (
                 <div key={tab.name} className="border-b" style={{ borderColor: 'var(--border)' }}>
-                  <div className="flex flex-wrap items-center gap-2 px-4 py-2">
-                    <input
-                      type="checkbox"
-                      checked={plan.include}
-                      disabled={tab.rowCount === 0}
-                      onChange={(e) => updatePlan(tab.name, { include: e.target.checked })}
-                    />
-                    <span className="font-medium">{tab.name}</span>
-                    <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                      {tab.rowCount.toLocaleString('en-IN')} rows
-                      {tab.rowCount === 0 && ' (empty - nothing to import)'}
-                      {tab.headerRow > 1 && ` · header on row ${tab.headerRow}`}
-                    </span>
-
-                    {mode === 'TAB_PER_SHEET' && tab.rowCount > 0 && (
+                  <div
+                    className="px-4 py-2 sm:grid sm:items-center sm:gap-2"
+                    style={{ gridTemplateColumns: TAB_GRID }}
+                  >
+                    <div className="flex items-center gap-2">
                       <input
-                        className="input ml-auto w-40"
-                        value={plan.sheetName}
-                        onChange={(e) => updatePlan(tab.name, { sheetName: e.target.value })}
-                        aria-label={`Sheet name for ${tab.name}`}
+                        type="checkbox"
+                        checked={plan.include}
+                        disabled={tab.rowCount === 0}
+                        onChange={(e) => updatePlan(tab.name, { include: e.target.checked })}
+                        aria-label={`Import the ${tab.name} tab`}
                       />
-                    )}
-                    {tab.rowCount > 0 && (
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{tab.name}</p>
+                        <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                          {tab.rowCount.toLocaleString('en-IN')} rows
+                          {tab.rowCount === 0 && ' — empty'}
+                          {tab.headerRow > 1 && ` · header row ${tab.headerRow}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {tab.rowCount > 0 ? (
                       <>
-                        <input
-                          className="input w-36"
-                          placeholder="District"
-                          value={plan.district ?? ''}
-                          onChange={(e) => updatePlan(tab.name, { district: e.target.value || null })}
-                          aria-label={`District for ${tab.name}`}
-                        />
-                        <select
-                          className="input w-32"
-                          value={plan.regionCategory}
-                          onChange={(e) => updatePlan(tab.name, { regionCategory: e.target.value })}
-                          aria-label={`Region for ${tab.name}`}
-                        >
-                          {Object.entries(REGION_LABELS).map(([v, l]) => (
-                            <option key={v} value={v}>{l}</option>
-                          ))}
-                        </select>
-                        <select
-                          className="input w-36"
-                          value={plan.listType}
-                          onChange={(e) => updatePlan(tab.name, { listType: e.target.value })}
-                          aria-label={`List type for ${tab.name}`}
-                        >
-                          <option value="MASS_CALL">Mass call list</option>
-                          <option value="CONNECTED">Connected school</option>
-                          <option value="OFFLINE_OUTREACH">Offline outreach</option>
-                        </select>
-                        <button
-                          type="button"
-                          className="btn btn-ghost py-1 text-xs"
-                          onClick={() => setOpenTab(isOpen ? null : tab.name)}
-                        >
-                          {isOpen ? 'Hide' : 'Columns'}
-                          {unmapped > 0 && ` (${unmapped} new)`}
-                        </button>
+                        <div className="mt-2 sm:mt-0">
+                          <span className="label sm:hidden">District</span>
+                          {/* Type a district or pick one - the list is only a
+                              suggestion, so an unexpected place name still works. */}
+                          <input
+                            className="input"
+                            list={`districts-${tab.name}`}
+                            placeholder="District"
+                            value={plan.district ?? ''}
+                            onChange={(e) =>
+                              updatePlan(tab.name, { district: e.target.value || null })
+                            }
+                            aria-label={`District for ${tab.name}`}
+                          />
+                          <datalist id={`districts-${tab.name}`}>
+                            {districtsFor(
+                              plan.regionCategory as Parameters<typeof districtsFor>[0]
+                            ).map((d) => (
+                              <option key={d} value={d} />
+                            ))}
+                          </datalist>
+                        </div>
+
+                        <div className="mt-2 sm:mt-0">
+                          <span className="label sm:hidden">Region</span>
+                          <select
+                            className="input"
+                            value={plan.regionCategory}
+                            onChange={(e) =>
+                              updatePlan(tab.name, { regionCategory: e.target.value })
+                            }
+                            aria-label={`Region for ${tab.name}`}
+                          >
+                            {Object.entries(REGION_LABELS).map(([v, l]) => (
+                              <option key={v} value={v}>{l}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="mt-2 sm:mt-0">
+                          <span className="label sm:hidden">List type</span>
+                          <select
+                            className="input"
+                            value={plan.listType}
+                            onChange={(e) => updatePlan(tab.name, { listType: e.target.value })}
+                            aria-label={`List type for ${tab.name}`}
+                          >
+                            {LIST_TYPES.map(([v, l]) => (
+                              <option key={v} value={v}>{l}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="mt-2 flex items-center gap-2 sm:mt-0">
+                          <button
+                            type="button"
+                            className="btn btn-ghost py-1 text-xs"
+                            onClick={() => setOpenTab(isOpen ? null : tab.name)}
+                          >
+                            {isOpen ? 'Hide' : 'Columns'}
+                            {unmapped > 0 && ` (${unmapped} new)`}
+                          </button>
+                        </div>
                       </>
+                    ) : (
+                      <span className="text-xs sm:col-span-4" style={{ color: 'var(--muted)' }}>
+                        Nothing to import from this tab.
+                      </span>
                     )}
                   </div>
+                  {mode === 'TAB_PER_SHEET' && plan.include && tab.rowCount > 0 && (
+                    <p className="px-4 pb-2 text-xs" style={{ color: 'var(--muted)' }}>
+                      Creates the sheet <strong>{plan.sheetName}</strong>
+                    </p>
+                  )}
 
                   {isOpen && (
                     <div className="px-4 pb-3" style={{ background: 'var(--surface-2)' }}>

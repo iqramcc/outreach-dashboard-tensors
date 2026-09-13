@@ -18,6 +18,7 @@ export default function EditableCell({
   rawValue,
   color,
   options,
+  suggestions,
   onSave,
 }: {
   rowId: string
@@ -26,6 +27,8 @@ export default function EditableCell({
   rawValue: string
   color: string | null
   options: Option[] | null
+  /** Pick-or-type values. Keeps spelling consistent without blocking new ones. */
+  suggestions?: readonly string[] | null
   onSave: (value: string | number | null) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -99,6 +102,7 @@ export default function EditableCell({
     )
   }
 
+  const listId = `sugg-${column.key}`
   const inputType =
     column.type === 'DATE'
       ? 'date'
@@ -142,6 +146,7 @@ export default function EditableCell({
           <input
             ref={inputRef}
             type={inputType}
+            list={suggestions && suggestions.length > 0 ? listId : undefined}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
@@ -157,6 +162,13 @@ export default function EditableCell({
         <span className="block max-w-[22rem] truncate">
           {display || <span style={{ color: 'var(--muted)' }}>&mdash;</span>}
         </span>
+      )}
+      {editing && suggestions && suggestions.length > 0 && (
+        <datalist id={listId}>
+          {suggestions.map((o) => (
+            <option key={o} value={o} />
+          ))}
+        </datalist>
       )}
     </td>
   )

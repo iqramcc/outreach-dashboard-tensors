@@ -7,6 +7,7 @@
 */
 
 :root {
+  color-scheme: light;
   --bg: #ffffff;
   --surface: #ffffff;
   --surface-2: #f6f8f7;
@@ -23,6 +24,8 @@
 }
 
 [data-theme='dark'] {
+  /* Makes the native date picker, selects and scrollbars render dark too. */
+  color-scheme: dark;
   --bg: #0b0f0d;
   --surface: #121815;
   --surface-2: #171f1b;
