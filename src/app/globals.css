@@ -1,0 +1,152 @@
+@import 'tailwindcss';
+
+/*
+  Two themes: white + green, and black + green. Green is the only accent; every
+  other colour in the app is one of these neutrals, and status colours come
+  from the database so the team controls them.
+*/
+
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f6f8f7;
+  --border: #e3e8e6;
+  --text: #10231a;
+  --muted: #61756b;
+  --accent: #10803f;
+  --accent-hover: #0c692f;
+  --accent-soft: #e8f5ed;
+  --accent-text: #ffffff;
+  --danger: #c2410c;
+  --row-hover: #f3f8f5;
+  --shadow: 0 1px 2px rgb(16 35 26 / 0.06), 0 1px 3px rgb(16 35 26 / 0.04);
+}
+
+[data-theme='dark'] {
+  --bg: #0b0f0d;
+  --surface: #121815;
+  --surface-2: #171f1b;
+  --border: #253029;
+  --text: #e8f0ea;
+  --muted: #8fa398;
+  --accent: #34d17a;
+  --accent-hover: #4ade8c;
+  --accent-soft: #16291f;
+  --accent-text: #06170e;
+  --danger: #f97362;
+  --row-hover: #17211c;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-danger: var(--danger);
+  --color-row-hover: var(--row-hover);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+::placeholder {
+  color: var(--muted);
+}
+
+/* Keyboard focus stays visible; mouse clicks don't draw a ring. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The sheet is a dense grid - a thin scrollbar keeps it from eating space. */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.thin-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5
+      text-sm font-medium transition-colors select-none whitespace-nowrap
+      disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+  .btn-primary:hover {
+    background: var(--accent-hover);
+  }
+  .btn-ghost {
+    color: var(--text);
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .btn-ghost:hover {
+    background: var(--surface-2);
+  }
+  .btn-danger {
+    color: var(--danger);
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .btn-danger:hover {
+    background: var(--surface-2);
+  }
+
+  .input {
+    @apply w-full rounded-md px-2.5 py-1.5 text-sm;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+  }
+
+  .label {
+    @apply block text-xs font-medium mb-1;
+    color: var(--muted);
+  }
+}

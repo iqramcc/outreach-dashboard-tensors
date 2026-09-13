@@ -1,0 +1,273 @@
+// Tensors - Junior Olympiad outreach dashboard.
+//
+// Design note: a School row always lives in exactly one Sheet (the team's
+// Excel-tab mental model), but the fields that drive the dashboard - region,
+// district, listType, status - are real indexed columns rather than sheet
+// properties. That is what lets us ask "all of Kerala, every sheet, grouped by
+// district" while the team still works tab by tab.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum EntityType {
+  SCHOOL
+  TUITION_CENTRE
+  OTHER
+}
+
+enum RegionCategory {
+  KERALA
+  TAMIL_NADU
+  MIDDLE_EAST
+  OTHER_STATE
+}
+
+enum ListType {
+  MASS_CALL // the 1000-3000 school cold-call list
+  CONNECTED // schools we have a personal connection with - primary target
+  OFFLINE_OUTREACH // schools we plan to visit in person
+}
+
+enum ColumnType {
+  TEXT
+  LONGTEXT
+  NUMBER
+  PHONE
+  EMAIL
+  SELECT
+  DATE
+  CHECKBOX
+}
+
+enum OutreachChannel {
+  CALL
+  WHATSAPP
+  EMAIL
+  VISIT
+  OTHER
+}
+
+enum ImportMode {
+  TAB_PER_SHEET
+  MERGE_ALL
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(MEMBER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdSheets   Sheet[]       @relation("SheetCreatedBy")
+  createdSchools  School[]      @relation("SchoolCreatedBy")
+  assignedSchools School[]      @relation("SchoolAssignedTo")
+  outreachLogs    OutreachLog[]
+  importBatches   ImportBatch[]
+  columnPrefs     ColumnPref[]
+}
+
+model Sheet {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  order       Int      @default(0)
+  isArchived  Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User?       @relation("SheetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  schools   School[]
+  columns   ColumnDef[]
+
+  @@index([isArchived, order])
+}
+
+model School {
+  id      String @id @default(uuid())
+  sheetId String
+
+  name       String
+  // The Tensors member who owns this relationship (their sheet's "Primary POC").
+  primaryPoc String?
+  // name lowercased, punctuation stripped, whitespace collapsed.
+  // Indexed - this is what makes duplicate detection a lookup, not a scan.
+  nameKey    String
+
+  entityType      EntityType     @default(SCHOOL)
+  schoolType      String? // board: CBSE / State / ICSE / International
+  financeType     String? // Government / Aided / Private / Unaided
+  // Target-audience size. TEXT not Int: their sheets contain "1500*3=4500".
+  // Raw value as it appeared in the uploaded sheet ("1500*3=4500"), kept for
+  // reference. The parsed numbers below are what the dashboard adds up.
+  studentStrength String?
+  strength8       Int?
+  strength9       Int?
+  strength10      Int?
+  strengthTotal   Int?
+  regionCategory  RegionCategory @default(KERALA)
+  district        String?
+  state           String?
+  listType        ListType       @default(MASS_CALL)
+
+  connection String? // "Ikram's school", "friend of X"
+  pocName    String?
+  pocRole    String?
+  contact    String?
+  contactKey String? // normalised digits, for duplicate matching
+  email      String?
+  address    String?
+  website    String?
+
+  statusId        String?
+  assignedToId    String?
+  nextFollowUpAt  DateTime?
+  lastContactedAt DateTime?
+
+  registeredStudents Int?
+  remarks            String?
+
+  // Anything the core columns don't cover - populated from Excel imports and
+  // admin-created custom columns. Keyed by ColumnDef.key.
+  extra      Json @default("{}")
+  // Ad-hoc per-cell highlights, { columnKey: hex }. Kept separate from status
+  // so manual highlighting can never corrupt the funnel numbers.
+  cellColors Json @default("{}")
+
+  importBatchId String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sheet       Sheet           @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  status      OutreachStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  assignedTo  User?           @relation("SchoolAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy   User?           @relation("SchoolCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  importBatch ImportBatch?    @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  logs        OutreachLog[]
+
+  @@index([nameKey])
+  @@index([contactKey])
+  @@index([sheetId])
+  @@index([regionCategory, district])
+  @@index([listType])
+  @@index([statusId])
+  @@index([assignedToId])
+  @@index([nextFollowUpAt])
+  @@index([importBatchId])
+}
+
+// The colour legend and the status pipeline are deliberately the same table.
+// The user wants colour codes with their meanings labelled at the top of the
+// sheet - that legend IS the status list. Keeping them as one row means the
+// funnel chart, the row colour and the legend can never drift apart.
+model OutreachStatus {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  hex         String
+  order       Int      @default(0)
+  // Counts as a win in the funnel (e.g. Confirmed).
+  isPositive  Boolean  @default(false)
+  // Counts as "we have made contact" for the contacted% metric.
+  isContacted Boolean  @default(false)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  schools School[]
+
+  @@index([order])
+}
+
+// Drives which columns render, in what order, under what label. Core columns
+// map onto real School fields; custom ones live in School.extra.
+model ColumnDef {
+  id         String     @id @default(uuid())
+  key        String
+  label      String
+  type       ColumnType @default(TEXT)
+  options    Json? // for SELECT
+  isCore     Boolean    @default(false)
+  sheetId    String? // null = applies to every sheet
+  order      Int        @default(0)
+  isVisible  Boolean    @default(true)
+  isRequired Boolean    @default(false)
+  width      Int? // px, remembered from column resize
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  sheet Sheet?       @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  prefs ColumnPref[]
+
+  @@unique([sheetId, key])
+  @@index([order])
+}
+
+// Per-user show/hide and ordering overrides, so one volunteer hiding a column
+// doesn't change it for everyone.
+model ColumnPref {
+  id          String  @id @default(uuid())
+  userId      String
+  columnDefId String
+  isVisible   Boolean @default(true)
+  order       Int?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  columnDef ColumnDef @relation(fields: [columnDefId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, columnDefId])
+}
+
+model OutreachLog {
+  id             String          @id @default(uuid())
+  schoolId       String
+  userId         String?
+  channel        OutreachChannel @default(CALL)
+  outcome        String?
+  note           String?
+  nextFollowUpAt DateTime?
+  // Status before/after, so the timeline reads as a history not just notes.
+  fromStatusName String?
+  toStatusName   String?
+  createdAt      DateTime        @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+// Recorded per import so a bad upload can be undone in one click.
+model ImportBatch {
+  id          String     @id @default(uuid())
+  filename    String
+  mode        ImportMode
+  createdById String?
+  rowsCreated Int        @default(0)
+  rowsUpdated Int        @default(0)
+  rowsSkipped Int        @default(0)
+  sheetNames  Json       @default("[]")
+  isUndone    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  schools   School[]
+
+  @@index([createdAt])
+}

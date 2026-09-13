@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: olympiad-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: olympiad
+      POSTGRES_PASSWORD: olympiad
+      POSTGRES_DB: olympiad
+    ports:
+      - "5433:5432"
+    volumes:
+      - olympiad-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U olympiad -d olympiad"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  olympiad-pgdata:
